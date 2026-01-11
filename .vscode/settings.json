@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "./tb"
+    ],
+    "hediet.vscode-drawio.appearance": "dark"
+}

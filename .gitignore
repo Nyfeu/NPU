@@ -1,0 +1,5 @@
+# Ignora a pasta build
+build
+
+# Ignora arquivos temporários do Python
+__pycache__/
