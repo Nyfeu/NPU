@@ -7,7 +7,7 @@ Este documento rastreia o progresso do desenvolvimento da NPU e define as especi
 ### Fase 1: Infraestrutura e Definições
 - [x] Criar estrutura de diretórios (`rtl/`, `sim/`, `build/`).
 - [x] Configurar `makefile` principal e scripts de suporte.
-- [ ] Definir `npu_pkg.vhd` (Pacote de constantes e tipos globais).
+- [x] Definir `npu_pkg.vhd` (Pacote de constantes e tipos globais).
 
 ### Fase 2: O Coração (MAC PE)
 - [ ] **Design:** Implementar `mac_pe.vhd` (Processing Element).
