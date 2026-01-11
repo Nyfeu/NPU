@@ -10,7 +10,7 @@ Este documento rastreia o progresso do desenvolvimento da NPU e define as especi
 - [x] Definir `npu_pkg.vhd` (Pacote de constantes e tipos globais).
 
 ### Fase 2: O Coração (MAC PE)
-- [ ] **Design:** Implementar `mac_pe.vhd` (Processing Element).
+- [x] **Design:** Implementar `mac_pe.vhd` (Processing Element).
 - [ ] **Verificação:** Criar `test_mac_pe.py` (Teste unitário).
 - [ ] **Simulação:** Validar comportamento de *Weight Stationary* e Pipeline.
 
@@ -34,10 +34,10 @@ Definição dos tipos padrão para garantir consistência em toda a hierarquia.
 
 * **Tipos:**
     * `npu_data_t`: `signed(7 downto 0)` (Ativações e Pesos de 8 bits).
-    * `npu_acc_t`: `signed(15 downto 0)` (Acumulador de 16 bits).
+    * `npu_acc_t`: `signed(15 downto 0)` (Acumulador de 32 bits).
 * **Constantes:**
     * `DATA_WIDTH`: 8
-    * `ACC_WIDTH`: 16
+    * `ACC_WIDTH`: 32
 
 ---
 

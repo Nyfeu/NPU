@@ -5,7 +5,7 @@ use ieee.numeric_std.all;
 package npu_pkg is
 
     -- =========================================================================
-    -- 1. Constantes Globais de Configuração
+    -- Constantes Globais de Configuração
     -- =========================================================================
     
     -- Largura dos dados de entrada (Pixels e Pesos)
@@ -16,7 +16,7 @@ package npu_pkg is
     constant ACC_WIDTH  : integer := 32;
 
     -- =========================================================================
-    -- 2. Definição de Tipos Padrão
+    -- Definição de Tipos Padrão
     -- =========================================================================
     
     -- Tipo para dados e pesos (Signed 8-bit)
