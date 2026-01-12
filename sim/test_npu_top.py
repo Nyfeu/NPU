@@ -1,233 +1,228 @@
 # ==============================================================================
-# File: tb/test_npu_top.py
-# Descrição: Testbench de Integração para o NPU TOP LEVEL.
-#            Verifica o fluxo completo: Entrada(Int8) -> Core(Int32) -> PPU -> Saída(Int8)
+# File: test_npu_top.py
 # ==============================================================================
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, ReadOnly
+from cocotb.triggers import RisingEdge
 import random
 from test_utils import *
 
 # ==============================================================================
-# CONFIGURAÇÕES (DEVEM BATER COM O VHDL)
+# CONSTANTES
 # ==============================================================================
+
+# Endereços dos registradores CSRs
+ADDR_CSR_CTRL   = 0x00
+ADDR_CSR_QUANT  = 0x04
+ADDR_CSR_MULT   = 0x08
+ADDR_CSR_STATUS = 0x0C
+ADDR_FIFO_W     = 0x10
+ADDR_FIFO_ACT   = 0x14
+ADDR_FIFO_OUT   = 0x18
+ADDR_BIAS_BASE  = 0x20 
+
+# Tamanho do array sistólico
 ROWS = 4
 COLS = 4
-DATA_WIDTH = 8   # Entrada/Saída do Top
-ACC_WIDTH = 32   # Largura interna do Acumulador/Bias
-QUANT_WIDTH = 32 # Largura do Multiplicador
 
 # ==============================================================================
-# MODELO DE REFERÊNCIA COMPLETO (GOLDEN MODEL)
+# DRIVER MMIO
 # ==============================================================================
-class NPUFullModel:
-    @staticmethod
-    def compute(weights, input_vec, bias_vec, mult, shift, zp, en_relu):
-        """
-        Simula o hardware bit-exact:
-        1. Multiplicação Matricial (Systolic Array)
-        2. Soma de Bias
-        3. Scaling (Mult + Shift + Round)
-        4. Zero Point + ReLU + Clamp
-        """
-        
-        # 1. CORE: Matrix Multiply (Y = X * W)
-        # ---------------------------------------------------
-        core_accs = []
+
+class MMIO_Driver:
+
+    def __init__(self, dut):
+        self.dut = dut
+        self.dut.sel_i.value  = 0
+        self.dut.we_i.value   = 0
+        self.dut.addr_i.value = 0
+        self.dut.data_i.value = 0
+
+    async def write(self, addr, data):
+        await RisingEdge(self.dut.clk)
+        self.dut.sel_i.value  = 1
+        self.dut.we_i.value   = 1
+        self.dut.addr_i.value = addr
+        self.dut.data_i.value = int(data) & 0xFFFFFFFF
+        await RisingEdge(self.dut.clk)
+        self.dut.sel_i.value  = 0
+        self.dut.we_i.value   = 0
+
+    async def read(self, addr):
+        await RisingEdge(self.dut.clk)
+        self.dut.sel_i.value  = 1
+        self.dut.we_i.value   = 0
+        self.dut.addr_i.value = addr
+        await RisingEdge(self.dut.clk)
+        val_obj = self.dut.data_o.value
+        self.dut.sel_i.value  = 0
+        try: return int(val_obj)
+        except ValueError: return 0
+
+# ==============================================================================
+# HELPERS
+# ==============================================================================
+
+def pack_vec(values):
+    packed = 0
+    for i, val in enumerate(values):
+        val = val & 0xFF
+        packed |= (val << (i * 8))
+    return packed
+
+def unpack_vec(packed):
+    res = []
+    for i in range(4):
+        b = (packed >> (i*8)) & 0xFF
+        if b > 127: b -= 256
+        res.append(b)
+    return res
+
+def clamp_int8(val):
+    if val > 127: return 127
+    if val < -128: return -128
+    return val
+
+# ==============================================================================
+# GOLDEN MODEL
+# ==============================================================================
+
+def npu_golden_model(weights, inputs, biases, mult, shift, zp, relu):
+    results = []
+    for vec_in in inputs:
+        row_res = []
         for c in range(COLS):
             acc = 0
             for r in range(ROWS):
-                acc += input_vec[r] * weights[r][c]
-            core_accs.append(acc)
-
-        # 2. PPU: Post-Processing
-        # ---------------------------------------------------
-        final_outputs = []
-        for c, val in enumerate(core_accs):
-            
-            # A. Bias Add
-            val = val + bias_vec[c]
-            
-            # B. Scaling (Fixed Point Mult)
-            val = val * mult
-            
-            # C. Shift & Rounding (Round to Nearest)
+                acc += vec_in[r] * weights[r][c]
+            acc += biases[c]
+            acc = acc * mult
             if shift > 0:
                 round_bit = 1 << (shift - 1)
-                val = (val + round_bit) >> shift
-            
-            # D. Zero Point Add
-            val = val + zp
-            
-            # E. ReLU
-            if en_relu and val < 0:
-                val = 0
-                
-            # F. Clamping (Saturação Int8: -128 a 127)
-            if val > 127: val = 127
-            if val < -128: val = -128
-            
-            final_outputs.append(val)
-            
-        return final_outputs
+                acc = (acc + round_bit) >> shift
+            acc += zp
+            if relu and acc < 0: acc = 0
+            row_res.append(clamp_int8(acc))
+        results.append(row_res)
+    return results
 
 # ==============================================================================
-# HELPERS DE EMPACOTAMENTO
-# ==============================================================================
-
-def pack_weights(row_values):
-    """ Empacota uma linha de pesos (Int8) """
-    packed = 0
-    mask = (1 << DATA_WIDTH) - 1
-    for i, val in enumerate(row_values):
-        val = val & mask
-        packed |= (val << (i * DATA_WIDTH))
-    return packed
-
-def pack_inputs(vec_values):
-    """ Empacota vetor de ativação (Int8) """
-    return pack_weights(vec_values) # Mesma lógica
-
-def pack_bias(bias_list):
-    """ Empacota vetor de Bias (Int32) - Cuidado com a largura! """
-    packed = 0
-    mask = (1 << ACC_WIDTH) - 1
-    for i, val in enumerate(bias_list):
-        val = val & mask
-        packed |= (val << (i * ACC_WIDTH))
-    return packed
-
-def unpack_output(packed_val):
-    """ Desempacota saída (Int8) """
-    try: val_int = int(packed_val)
-    except: return [0] * COLS
-    
-    res = []
-    mask = (1 << DATA_WIDTH) - 1
-    for i in range(COLS):
-        raw = (val_int >> (i * DATA_WIDTH)) & mask
-        if raw & 0x80: raw -= 0x100 # Signed conversion
-        res.append(raw)
-    return res
-
-# ==============================================================================
-# TESTBENCH
+# TESTE HEAVY STRESS (FULL DUPLEX)
 # ==============================================================================
 
 @cocotb.test()
-async def test_npu_integration(dut):
-    """
-    Teste de Integração:
-    1. Carrega pesos.
-    2. Configura PPU com parâmetros não-triviais (Bias, Shift).
-    3. Injeta dados e verifica se a saída bate com o modelo Python.
-    """
-    log_header("TESTE DE INTEGRAÇÃO NPU TOP (CORE + PPU)")
+async def test_npu_heavy_stress(dut):
     
-    # --- 1. Inicialização ---
+    # Teste Robustez com Controle de Fluxo:
+    # - Monitora Flags FIFO Full/Empty para evitar perda de dados.
+    # - Alterna entre escrita e leitura dinamicamente.
+    
+    log_header("TESTE NPU: HEAVY STRESS (FULL DUPLEX)")
+    
     cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+    mmio = MMIO_Driver(dut)
     
     dut.rst_n.value = 0
-    dut.valid_in.value = 0
-    dut.load_weight.value = 0
-    
-    # Configuração Inicial Segura (Bypass)
-    dut.bias_in.value = 0
-    dut.quant_mult.value = 1
-    dut.quant_shift.value = 0
-    dut.zero_point.value = 0
-    dut.en_relu.value = 0
-    
-    await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     dut.rst_n.value = 1
-    log_info("Reset liberado.")
+    
+    NUM_EPOCHS = 50
+    VEC_PER_EPOCH = 100 
+    
+    total_errors = 0
+    total_vectors_processed = 0
 
-    # --- 2. Carga de Pesos (Weight Loading) ---
-    # Vamos usar uma Matriz Diagonal com valor 2 para facilitar o debug mental
-    # [[2,0,0,0], [0,2,0,0]...]
-    # Assim, o resultado do Core será Entrada * 2
-    
-    weights = [[2 if r == c else 0 for c in range(COLS)] for r in range(ROWS)]
-    
-    dut.load_weight.value = 1
-    for r in range(ROWS-1, -1, -1):
-        dut.input_weights.value = pack_weights(weights[r])
-        await RisingEdge(dut.clk)
-    dut.load_weight.value = 0
-    
-    log_info("Pesos carregados (Diagonal x2).")
+    for epoch in range(NUM_EPOCHS):
+        if epoch % 10 == 0: 
+            log_info(f"--- Epoch {epoch+1}/{NUM_EPOCHS} ---")
+        
+        # 1. Config Randomization
+        biases = [random.randint(-20000, 20000) for _ in range(COLS)]
+        mult = random.randint(1, 30000) 
+        if random.choice([True, False]): mult = -mult 
+        shift = random.randint(0, 14)
+        zp = random.randint(-50, 50)
+        en_relu = random.choice([0, 1])
 
-    # --- 3. Configuração do PPU (Cenário Realista) ---
-    # Vamos testar:
-    # - Bias: Somar valores diferentes por coluna
-    # - Scaling: Multiplicar por 1 (mas via PPU) e dividir por 2 (Shift=1)
-    # Resultado Esperado: ((Entrada * 2) + Bias) / 2
-    
-    bias_vec = [10, 20, -10, 0] # Bias por coluna
-    mult = 1
-    shift = 1 # Divisão por 2
-    zp = 0
-    relu = 1  # Ativar ReLU para cortar negativos
-    
-    dut.bias_in.value     = pack_bias(bias_vec)
-    dut.quant_mult.value  = mult
-    dut.quant_shift.value = shift
-    dut.zero_point.value  = zp
-    dut.en_relu.value     = relu
-    
-    log_info(f"Config PPU: Bias={bias_vec}, Shift={shift}, ReLU={relu}")
+        # Write CSRs
+        await mmio.write(ADDR_CSR_CTRL, (0 << 1) | en_relu) 
+        quant_cfg = ((zp & 0xFF) << 8) | (shift & 0x1F)
+        await mmio.write(ADDR_CSR_QUANT, quant_cfg)
+        await mmio.write(ADDR_CSR_MULT, mult)
+        for i, b in enumerate(biases):
+            await mmio.write(ADDR_BIAS_BASE + (i*4), b)
 
-    # --- 4. Loop de Teste ---
-    test_vectors = [
-        [10, 10, 10, 10],   # Simples
-        [0, 0, 0, 0],       # Zeros
-        [-20, -20, -20, -20], # Negativos (Testar ReLU)
-        [50, 50, 50, 50]    # Valores mais altos
-    ]
-    
-    # Fila de espera para conferência
-    expected_queue = []
-
-    # Processo de Monitoramento
-    async def monitor():
-        idx = 0
-        while idx < len(test_vectors):
-            await RisingEdge(dut.clk)
-            await ReadOnly()
-            if dut.valid_out.value == 1:
-                received = unpack_output(dut.output_data.value)
-                expected = expected_queue[idx]
+        # 2. Weights Randomization
+        W = [[random.randint(-128, 127) for _ in range(COLS)] for _ in range(ROWS)]
+        
+        await mmio.write(ADDR_CSR_CTRL, (1 << 1) | en_relu)
+        for row in reversed(W):
+            await mmio.write(ADDR_FIFO_W, pack_vec(row))
+            
+        await mmio.write(ADDR_CSR_CTRL, (0 << 1) | en_relu) # Inference Mode
+        
+        # 3. Generate Inputs
+        X = []
+        X.append([127, 127, 127, 127])    
+        X.append([-128, -128, -128, -128]) 
+        X.append([0, 0, 0, 0])
+        X.append([127, -128, 127, -128])
+        for _ in range(VEC_PER_EPOCH):
+            X.append([random.randint(-128, 127) for _ in range(ROWS)])
+            
+        total_vectors_processed += len(X)
+        expected = npu_golden_model(W, X, biases, mult, shift, zp, en_relu)
+        
+        # 4. STREAMING LOOP 
+        # ======================================================================
+        sent_idx = 0
+        received_data = []
+        
+        # Enquanto houver dados para enviar OU receber
+        while len(received_data) < len(X):
+            
+            # Lê Status Register
+            # Bit 0: Input FIFO Full
+            # Bit 3: Output Valid (Data Ready)
+            status = await mmio.read(ADDR_CSR_STATUS)
+            
+            in_full = (status >> 0) & 1
+            out_rdy = (status >> 3) & 1
+            
+            did_work = False
+            
+            # Prioridade 1: Drenar Saída (Evitar Output FIFO Overflow)
+            if out_rdy:
+                val = await mmio.read(ADDR_FIFO_OUT)
+                received_data.append(unpack_vec(val))
+                did_work = True
                 
-                if received == expected:
-                    log_success(f"Vetor {idx} OK: Entrada={test_vectors[idx]} -> Saída={received}")
-                else:
-                    log_error(f"FALHA no Vetor {idx}:")
-                    log_error(f"   Esperado: {expected}")
-                    log_error(f"   Recebido: {received}")
-                    assert False, "Mismatch de dados"
-                idx += 1
-    
-    cocotb.start_soon(monitor())
+            # Prioridade 2: Enviar Entrada (Se houver espaço)
+            if sent_idx < len(X) and not in_full:
+                await mmio.write(ADDR_FIFO_ACT, pack_vec(X[sent_idx]))
+                sent_idx += 1
+                did_work = True
+            
+            # Se não fez nada (FIFO cheia E sem saída), espera um pouco o HW processar
+            if not did_work:
+                await RisingEdge(dut.clk)
+                
+        # ======================================================================
 
-    # Processo de Injeção (Driver)
-    for vec in test_vectors:
-        # Calcula o esperado (Python)
-        exp = NPUFullModel.compute(weights, vec, bias_vec, mult, shift, zp, relu)
-        expected_queue.append(exp)
-        
-        # Envia para o Hardware
-        dut.valid_in.value = 1
-        dut.input_acts.value = pack_inputs(vec)
-        await RisingEdge(dut.clk)
-        
-    dut.valid_in.value = 0
+        # Validação
+        epoch_errors = 0
+        for i, (rcv, exp) in enumerate(zip(received_data, expected)):
+            if rcv != exp:
+                epoch_errors += 1
+                total_errors += 1
+                if epoch_errors == 1: 
+                    log_error(f"Falha Epoch {epoch} Vetor {i}")
+                    log_error(f"  In: {X[i]} | Exp: {exp} | Rcv: {rcv}")
+                    log_error(f"  Cfg: M={mult} S={shift} ZP={zp} B[0]={biases[0]}")
 
-    # Aguarda o fim do processamento
-    for _ in range(50):
-        if len(expected_queue) == 0: break # (Lógica simplificada, o monitor controla o idx)
-        await RisingEdge(dut.clk)
-        
-    log_success("Teste de Integração Finalizado com Sucesso!")
+    if total_errors == 0:
+        log_success(f"SUCESSO TOTAL: {total_vectors_processed} vetores validados.")
+    else:
+        log_error(f"FALHA: {total_errors} erros encontrados.")
+        assert False
