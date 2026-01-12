@@ -25,10 +25,6 @@ Este documento rastreia o progresso do desenvolvimento da NPU e define as especi
 - [x] **Integração:** Criar `npu_top.vhd` conectando Buffer -> Array.
 - [x] **Verificação:** Testar `npu_top` com vetores lineares (sem skew no Python).
 
-### Fase 5: Otimização e Aplicação (Futuro)
-- [ ] Implementar Controlador de Estados (FSM) para carga de pesos.
-- [ ] Teste Real: Multiplicação de Matriz 4x4 completa.
-
 ---
 
 ## 🛠️ Especificações Técnicas
