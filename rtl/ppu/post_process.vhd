@@ -155,7 +155,7 @@ begin
                 p1_quant_shift <= unsigned(quant_shift);
 
                 -- Expande Zero Point uint para signed positivo
-                p1_zero_point  <= signed('0' & zero_point); 
+                p1_zero_point  <= resize(signed(zero_point), DATA_W + 1);
                 p1_relu        <= en_relu;
 
                 -- ==========================================================================================
