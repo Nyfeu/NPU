@@ -1,6 +1,6 @@
 -------------------------------------------------------------------------------------------------------------
 --
--- File: npu_top.vhd
+-- File: npu_core.vhd
 -- 
 -- ███╗   ██╗██████╗ ██╗   ██╗
 -- ████╗  ██║██╔══██╗██║   ██║
@@ -9,7 +9,7 @@
 -- ██║ ╚████║██║     ╚██████╔╝
 -- ╚═╝  ╚═══╝╚═╝      ╚═════╝ 
 --
--- Descrição: Neural Processing Unit (NPU) - Interconexão Top-Level
+-- Descrição: Neural Processing Unit (NPU) - Interconexão CORE
 --
 -- Autor    : [André Maiolini]
 -- Data     : [12/01/2026]
@@ -22,10 +22,10 @@ use ieee.numeric_std.all;                                    -- Tipos numéricos
 use work.npu_pkg.all;                                        -- Pacote de definições do NPU
 
 -------------------------------------------------------------------------------------------------------------
--- ENTIDADE: Definição da interface da NPU Top-Level
+-- ENTIDADE: Definição da interface da NPU CORE
 -------------------------------------------------------------------------------------------------------------
 
-entity npu_top is
+entity npu_core is
 
     generic (
 
@@ -76,13 +76,13 @@ entity npu_top is
 
     );
 
-end entity npu_top;
+end entity npu_core;
 
 -------------------------------------------------------------------------------------------------------------
--- ARQUITETURA: Implementação comportamental da NPU Top-Level
+-- ARQUITETURA: Implementação comportamental da NPU CORE
 -------------------------------------------------------------------------------------------------------------
 
-architecture struct of npu_top is
+architecture struct of npu_core is
 
     -- Sinais de Interconexão -------------------------------------------------------------------------------
 
