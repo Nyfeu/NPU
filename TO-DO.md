@@ -21,7 +21,7 @@ Este documento rastreia o progresso do desenvolvimento da NPU e define as especi
 
 ### Fase 4: Gerenciamento de Dados (Data Movers)
 - [x] **Design:** Implementar `input_buffer.vhd` (Skew Buffer para Ativações).
-- [ ] **Design:** Implementar `output_buffer.vhd` (Deskew Buffer para Acumuladores - Opcional por enquanto).
+- [x] **Design:** Implementar `output_buffer.vhd` (Deskew Buffer para Acumuladores).
 - [ ] **Integração:** Criar `npu_top.vhd` conectando Buffer -> Array.
 - [ ] **Verificação:** Testar `npu_top` com vetores lineares (sem skew no Python).
 
