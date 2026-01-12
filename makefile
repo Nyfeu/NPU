@@ -80,10 +80,17 @@ ifndef TOP
 	$(error Erro: Defina TOP=<nome_entidade>)
 endif
 ifndef TEST
-	$(error Erro: Defina TEST=<nome_arquivo_python>)
+	$(error Erro: Defina TEST=<nome_arquivo_python> (sem a extensão .py))
 endif
 	@mkdir -p $(BUILD_DIR)
-	
+	$(eval TEST_FILE := $(shell find $(TB_DIR) -name "$(TEST).py" -print -quit))
+	@if [ -z "$(TEST_FILE)" ]; then \
+		echo " "; \
+		echo ">>> ❌ Erro: Arquivo '$(TEST).py' não encontrado em subpastas de '$(TB_DIR)'"; \
+		echo " "; \
+		exit 1; \
+	fi
+	$(eval TEST_DIR := $(shell dirname $(TEST_FILE)))
 	@echo " "
 	@echo "======================================================================"
 	@echo " "
@@ -93,12 +100,13 @@ endif
 	@echo " "
 	@echo ">>> 🏗️  Top Level :  $(TOP)"
 	@echo ">>> 📂 Testbench :  $(TEST).py"
+	@echo ">>> 📍 Local     :  $(TEST_DIR)"
 	@echo " "
 	@echo "======================================================================"
 	@echo " "
 	@export COCOTB_ANSI_OUTPUT=1; \
-    export COCOTB_RESULTS_FILE=$(BUILD_DIR)/results.xml; \
-	PYTHONPATH=$(TB_DIR) $(MAKE) -s -f $(shell cocotb-config --makefiles)/Makefile.sim \
+	export COCOTB_RESULTS_FILE=$(BUILD_DIR)/results.xml; \
+	PYTHONPATH=$(TB_DIR):$(TEST_DIR) $(MAKE) -s -f $(shell cocotb-config --makefiles)/Makefile.sim \
 		TOPLEVEL=$(TOP) \
 		MODULE=$(TEST) \
 		VHDL_SOURCES="$(shell find $(RTL_DIR) -name '*.vhd')" \
