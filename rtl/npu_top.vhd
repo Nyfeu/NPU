@@ -51,7 +51,7 @@ entity npu_top is
         COLS        : integer := 4;                              -- Quantidade de Colunas do Array Sistólico
         ACC_W       : integer := 32;                             -- Largura do Acumulador de Entrada
         DATA_W      : integer := 8;                              -- Largura do Dado de Saída
-        QUANT_W     : integer := 32                              -- Largura dos Parâmetros de Quantização
+        QUANT_W     : integer := 32;                             -- Largura dos Parâmetros de Quantização
         FIFO_DEPTH  : integer := 64                              -- Profundidade dos Buffers FIFO
 
     );
