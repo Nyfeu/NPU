@@ -19,8 +19,13 @@ Este documento rastreia o progresso do desenvolvimento da NPU e define as especi
 - [x] **Integração:** Instanciar PEs usando `generate` loops.
 - [x] **Verificação:** Criar `test_array.py` (Teste de fluxo de dados).
 
-### Fase 4: Otimização e Aplicação (Futuro)
-- [ ] Implementar Buffer de Entrada (FIFO) para ativações/dados.
+### Fase 4: Gerenciamento de Dados (Data Movers)
+- [x] **Design:** Implementar `input_buffer.vhd` (Skew Buffer para Ativações).
+- [ ] **Design:** Implementar `output_buffer.vhd` (Deskew Buffer para Acumuladores - Opcional por enquanto).
+- [ ] **Integração:** Criar `npu_top.vhd` conectando Buffer -> Array.
+- [ ] **Verificação:** Testar `npu_top` com vetores lineares (sem skew no Python).
+
+### Fase 5: Otimização e Aplicação (Futuro)
 - [ ] Implementar Controlador de Estados (FSM) para carga de pesos.
 - [ ] Teste Real: Multiplicação de Matriz 4x4 completa.
 
@@ -122,3 +127,30 @@ Uma grade de tamanho **ROWS × COLS** onde:
 4.  **Instanciação (Generate):**
     * Loop duplo (`i` de 0 a ROWS-1, `j` de 0 a COLS-1).
     * Mapear as portas de cada `mac_pe` utilizando os arrays lineares e as funções de índice.
+
+### 4. Input Buffer (`rtl/input_buffer.vhd`)
+Responsável por receber um vetor coluna linear (ex: `[10, 20, 30, 40]`) e aplicar atrasos progressivos para alinhar com a onda sistólica.
+
+#### **Conceito (Triangular Delay)**
+Para uma matriz 4x4:
+* **Linha 0:** Atraso 0 ciclos (Entra direto).
+* **Linha 1:** Atraso 1 ciclo.
+* **Linha 2:** Atraso 2 ciclos.
+* **Linha 3:** Atraso 3 ciclos.
+
+Isso transforma a entrada vertical `|` na entrada diagonal `/` necessária para o Array.
+
+#### **Interface**
+* **Generics:**
+    * `ROWS`: Número de linhas (para definir a profundidade máxima dos FIFOs).
+* **Portas:**
+    * `clk`, `rst_n`: Globais.
+    * `valid_in`: Sinal indicando que `data_in` é válido.
+    * `data_in`: Vetor linear (Largura: `ROWS * DATA_WIDTH`).
+    * `data_out`: Vetor inclinado (Largura: `ROWS * DATA_WIDTH`).
+        * *Nota:* A `data_out` deve ser conectada diretamente ao `input_acts` do `systolic_array`.
+
+#### **Implementação**
+* Utilizar um loop `generate`.
+* Para `i = 0`: Conexão direta (ou registro simples).
+* Para `i > 0`: Criar uma cadeia de registros (Shift Register) de tamanho `i`.
