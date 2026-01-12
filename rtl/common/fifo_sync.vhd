@@ -1,13 +1,38 @@
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
+-------------------------------------------------------------------------------------------------------------
+--
+-- File: fifo_sync.vhd
+--
+-- ███████╗██╗███████╗ ██████╗ 
+-- ██╔════╝██║██╔════╝██╔═══██╗
+-- █████╗  ██║█████╗  ██║   ██║
+-- ██╔══╝  ██║██╔══╝  ██║   ██║
+-- ██║     ██║██║     ╚██████╔╝
+-- ╚═╝     ╚═╝╚═╝      ╚═════╝ 
+--
+-- Autor    : [André Maiolini]
+-- Data     : [12/01/2026]
+-- 
+-------------------------------------------------------------------------------------------------------------
+
+library ieee;                                                    -- Biblioteca padrão IEEE
+use ieee.std_logic_1164.all;                                     -- Tipos de lógica digital
+use ieee.numeric_std.all;                                        -- Tipos numéricos (signed, unsigned)
+
+-------------------------------------------------------------------------------------------------------------
+-- ENTIDADE: Definição da interface do buffer FIFO
+----------------------------------------------------------------------------------------------------
 
 entity fifo_sync is
+
     generic (
+
         DATA_W : integer := 8;   -- Largura dos dados
         DEPTH  : integer := 16   -- Profundidade da Fila (número de slots)
+    
     );
+
     port (
+
         clk       : in  std_logic;
         rst_n     : in  std_logic;
 
@@ -23,8 +48,14 @@ entity fifo_sync is
         
         -- Status (Opcional, útil para debug ou CSRs)
         count     : out std_logic_vector(31 downto 0) -- Quantos itens tem na fila
+    
     );
+
 end entity fifo_sync;
+
+-------------------------------------------------------------------------------------------------------------
+-- ARQUITETURA: Implementação comportamental do buffer FIFO
+----------------------------------------------------------------------------------------------------
 
 architecture rtl of fifo_sync is
 
@@ -56,7 +87,6 @@ begin
     -- Saída de Count
     count <= std_logic_vector(to_unsigned(count_i, 32));
 
-    -- FWFT (First-Word Fall-Through) Simplificado
     -- O dado na saída é sempre o que está apontado pelo Tail
     r_data <= mem(tail);
 
@@ -107,4 +137,6 @@ begin
         end if;
     end process;
 
-end architecture;
+end architecture; -- rtl
+
+----------------------------------------------------------------------------------------------------
