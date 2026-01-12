@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: tb/test_array.py
+# File: test_array.py
 # ==============================================================================
 
 import cocotb
@@ -150,7 +150,7 @@ async def test_array_matmul_identity(dut):
 
     # Nota: O Array carrega de baixo para cima (Shift Register).
     # Precisamos enviar a Linha 3 (última), depois Linha 2, etc.
-    
+
     weights_matrix = [
         [1, 0, 0, 0], # Linha 0 (Será a última a entrar)
         [0, 1, 0, 0], # Linha 1
