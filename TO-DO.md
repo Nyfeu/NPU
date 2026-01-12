@@ -11,14 +11,13 @@ Este documento rastreia o progresso do desenvolvimento da NPU e define as especi
 
 ### Fase 2: O Coração (MAC PE)
 - [x] **Design:** Implementar `mac_pe.vhd` (Processing Element).
-- [ ] **Verificação:** Criar `test_mac_pe.py` (Teste unitário).
-- [ ] **Simulação:** Validar comportamento de *Weight Stationary* e Pipeline.
+- [x] **Verificação:** Criar `test_mac_pe.py` (Teste unitário).
+- [x] **Simulação:** Validar comportamento de *Weight Stationary* e Pipeline.
 
 ### Fase 3: A Arquitetura (Systolic Array)
-- [ ] **Design:** Implementar `systolic_array.vhd` (Matriz de PEs).
-- [ ] **Integração:** Instanciar PEs usando `generate` loops.
-- [ ] **Verificação:** Criar `test_array.py` (Teste de fluxo de dados).
-- [ ] **Correção:** Garantir propagação correta de sinais (evitar inferência de latches).
+- [x] **Design:** Implementar `systolic_array.vhd` (Matriz de PEs).
+- [x] **Integração:** Instanciar PEs usando `generate` loops.
+- [x] **Verificação:** Criar `test_array.py` (Teste de fluxo de dados).
 
 ### Fase 4: Otimização e Aplicação (Futuro)
 - [ ] Implementar Buffer de Entrada (FIFO) para ativações/dados.
@@ -81,3 +80,45 @@ O bloco fundamental da NPU. Deve operar na arquitetura **Weight Stationary** (Pe
         * O valor de `acc_out` deve ser registrado (atraso de 1 ciclo).
         * O valor de `act_out` deve ser uma cópia de `act_in` registrada (atraso de 1 ciclo).
         * *Objetivo:* Permitir o fluxo sistólico de dados (Wavefront) sem quebrar o timing.
+
+---
+### 3. Systolic Array (`rtl/systolic_array.vhd`)
+A entidade de topo que conecta os PEs em uma grade bidimensional.
+
+#### **Arquitetura & Topologia**
+Uma grade de tamanho **ROWS × COLS** onde:
+* **Ativações (Acts):** Fluem da Esquerda para a Direita (Row propagation).
+* **Pesos (Weights):** Fluem de Cima para Baixo (Daisy Chain Loading).
+* **Acumuladores (Accs):** Fluem de Cima para Baixo (Partial Sum accumulation).
+
+#### **Interface (Entity)**
+* **Generics:**
+    * `ROWS`: Altura da matriz (padrão sugerido: 4).
+    * `COLS`: Largura da matriz (padrão sugerido: 4).
+* **Portas (Interfaces "Blindadas"):**
+    * *Nota: Usar `std_logic_vector` nas portas externas para facilitar integração com ferramentas de simulação (VPI).*
+    * `clk`, `rst_n`, `load_weight`: Controle global.
+    * `input_weights`: Vetor contendo todos os pesos do topo (Largura: `COLS * DATA_WIDTH`).
+    * `input_acts`: Vetor contendo todas as ativações da esquerda (Largura: `ROWS * DATA_WIDTH`).
+    * `output_accs`: Vetor contendo os resultados no fundo (Largura: `COLS * ACC_WIDTH`).
+
+#### **Detalhes de Implementação (Internal Logic)**
+
+1.  **Tipos Internos (Linearização):**
+    * Para evitar problemas de simulação com matrizes 2D em portas de saída, utilizar **Arrays 1D** para os fios de interconexão.
+    * Definir funções auxiliares (`get_h_idx`, `get_v_idx`) para mapear coordenadas `(i, j)` para índices lineares.
+
+2.  **Fios de Interconexão:**
+    * `act_wires`: Conecta a saída `act_out` do PE(i,j) à entrada `act_in` do PE(i, j+1).
+    * `weight_wires`: Conecta `weight_out` do PE(i,j) à `weight_in` do PE(i+1, j).
+    * `acc_wires`: Conecta `acc_out` do PE(i,j) à `acc_in` do PE(i+1, j).
+
+3.  **Conexão das Bordas (Boundary Conditions):**
+    * **Topo (Pesos):** Desempacotar `input_weights`, converter para `signed` e conectar na linha 0 dos fios verticais de peso.
+    * **Topo (Acumuladores):** Injetar **ZERO** na linha 0 dos fios verticais de soma.
+    * **Esquerda (Ativações):** Desempacotar `input_acts`, converter para `signed` e conectar na coluna 0 dos fios horizontais.
+    * **Fundo (Saída):** Coleta a última linha dos fios de soma, converte para `std_logic_vector` e conecta a `output_accs`.
+
+4.  **Instanciação (Generate):**
+    * Loop duplo (`i` de 0 a ROWS-1, `j` de 0 a COLS-1).
+    * Mapear as portas de cada `mac_pe` utilizando os arrays lineares e as funções de índice.
