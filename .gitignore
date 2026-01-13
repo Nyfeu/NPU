@@ -3,3 +3,6 @@ build
 
 # Ignora arquivos temporários do Python
 __pycache__/
+
+# Ignora arquivos de teste temporários
+mnist.npz
