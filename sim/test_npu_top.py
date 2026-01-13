@@ -22,6 +22,12 @@ ADDR_FIFO_ACT   = 0x14
 ADDR_FIFO_OUT   = 0x18
 ADDR_BIAS_BASE  = 0x20 
 
+# Bits de Controle
+CTRL_RELU       = 1  # Bit 0
+CTRL_LOAD       = 2  # Bit 1
+CTRL_ACC_CLEAR  = 4  # Bit 2: Zera acumulador (Início de bloco)
+CTRL_ACC_DUMP   = 8  # Bit 3: Envia resultado (Fim de bloco)
+
 # Tamanho do array sistólico
 ROWS = 4
 COLS = 4
@@ -145,8 +151,11 @@ async def test_npu_heavy_stress(dut):
         zp = random.randint(-50, 50)
         en_relu = random.choice([0, 1])
 
-        # Write CSRs
-        await mmio.write(ADDR_CSR_CTRL, (0 << 1) | en_relu) 
+        # Write CSRs (Configuração Inicial)
+        # Nota: Não precisamos de Clear/Dump aqui pois é configuração
+        ctrl_val = en_relu # Apenas ReLU bit
+        await mmio.write(ADDR_CSR_CTRL, ctrl_val) 
+        
         quant_cfg = ((zp & 0xFF) << 8) | (shift & 0x1F)
         await mmio.write(ADDR_CSR_QUANT, quant_cfg)
         await mmio.write(ADDR_CSR_MULT, mult)
@@ -156,11 +165,20 @@ async def test_npu_heavy_stress(dut):
         # 2. Weights Randomization
         W = [[random.randint(-128, 127) for _ in range(COLS)] for _ in range(ROWS)]
         
-        await mmio.write(ADDR_CSR_CTRL, (1 << 1) | en_relu)
+        # Ativa LOAD MODE (Bit 1) + Mantém ReLU
+        await mmio.write(ADDR_CSR_CTRL, CTRL_LOAD | en_relu)
+        
         for row in reversed(W):
             await mmio.write(ADDR_FIFO_W, pack_vec(row))
             
-        await mmio.write(ADDR_CSR_CTRL, (0 << 1) | en_relu) # Inference Mode
+        # ---- Ativa Modo Inferência "Pass-Through" ---
+        # LOAD_MODE = 0
+        # ACC_CLEAR = 1 (Limpa acumulador a cada nova entrada)
+        # ACC_DUMP  = 1 (Libera resultado imediatamente)
+        ctrl_infer = en_relu | CTRL_ACC_CLEAR | CTRL_ACC_DUMP
+        
+        await mmio.write(ADDR_CSR_CTRL, ctrl_infer)
+        # ------------------------------------------------------------
         
         # 3. Generate Inputs
         X = []
@@ -183,8 +201,6 @@ async def test_npu_heavy_stress(dut):
         while len(received_data) < len(X):
             
             # Lê Status Register
-            # Bit 0: Input FIFO Full
-            # Bit 3: Output Valid (Data Ready)
             status = await mmio.read(ADDR_CSR_STATUS)
             
             in_full = (status >> 0) & 1

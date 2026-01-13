@@ -152,7 +152,9 @@ begin
     ---------------------------------------------------------------------------------------------------------
 
     write_strobe <= '1' when (sel_i = '1' and we_i = '1') else '0';
-    reg_addr     <= to_integer(unsigned(addr_i(7 downto 0)));
+    reg_addr     <= to_integer(unsigned(addr_i(7 downto 0)))
+                    when (addr_i(0) = '0' or addr_i(0) = '1') 
+                    else 0;
 
     process(clk, rst_n)
     begin

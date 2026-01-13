@@ -271,7 +271,7 @@ async def test_npu_mnist(dut):
         if max_diff == 0:
             status = "✅ (Bit-Exact)"
             if npu_pred == real_label: status += " 🎯 ACERTOU!"
-            else: status += " ⚠️ ERROU CLASSE"
+            else: status += " ⚠️  ERROU CLASSE"
             log_info(f"{msg} | Diff=0 {status}")
             match_count += 1
         elif npu_pred == soft_pred:

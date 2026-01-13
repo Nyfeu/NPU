@@ -34,6 +34,12 @@ ADDR_FIFO_W     = 0x10
 ADDR_FIFO_ACT   = 0x14
 ADDR_FIFO_OUT   = 0x18
 ADDR_BIAS_BASE  = 0x20 
+
+CTRL_RELU       = 1  # Bit 0
+CTRL_LOAD       = 2  # Bit 1
+CTRL_ACC_CLEAR  = 4  # Bit 2
+CTRL_ACC_DUMP   = 8  # Bit 3
+
 ROWS = 4
 COLS = 4
 
@@ -145,7 +151,9 @@ async def test_npu_iris_inference(dut):
     W_int, B_int, X_test, y_true, ppu_mult, ppu_shift = get_iris_model()
 
     # 2. Configurar NPU
-    await mmio.write(ADDR_CSR_CTRL, 0) # ReLU OFF
+    # Inicialmente apenas configuração de PPU, sem ativar Tiling ainda
+    await mmio.write(ADDR_CSR_CTRL, 0) 
+    
     quant_cfg = (0 << 8) | (ppu_shift & 0x1F) 
     await mmio.write(ADDR_CSR_QUANT, quant_cfg)
     await mmio.write(ADDR_CSR_MULT, ppu_mult)
@@ -158,12 +166,16 @@ async def test_npu_iris_inference(dut):
 
     # 3. Carregar Pesos
     log_info("Carregando Pesos...")
-    await mmio.write(ADDR_CSR_CTRL, 2) # Load Mode
+    await mmio.write(ADDR_CSR_CTRL, CTRL_LOAD) # Load Mode
     for r in reversed(range(ROWS)):
         packed = pack_vec(W_int[r, :])
         await mmio.write(ADDR_FIFO_W, packed)
         
-    await mmio.write(ADDR_CSR_CTRL, 0) # Inference Mode
+    # Ativar Modo Single-Batch (Clear + Dump) 
+    # Como IRIS tem apenas 4 entradas, cabe tudo em uma passada.
+    # Dizemos ao HW: "Zere o acumulador antes (CLEAR) e solte o resultado depois (DUMP)"
+    ctrl_infer = CTRL_ACC_CLEAR | CTRL_ACC_DUMP
+    await mmio.write(ADDR_CSR_CTRL, ctrl_infer)
     
     # 4. Inferência (Log de Tudo)
     log_info(f"Iniciando Inferência em {len(X_test)} amostras...")
