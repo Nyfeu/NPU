@@ -16,21 +16,28 @@
 --
 -------------------------------------------------------------------------------------------------------------   
 --
--- Mapa de Memória (Offsets):
+-- >>> Mapa de Memória (Offsets)
+-- 
 -- 0x00 (RW): CONTROL CSR
---            Bit 0: EN_RELU
+--            Bit 0: EN_RELU   (1 = Ativa ReLU, 0 = Pass-through linear)
 --            Bit 1: LOAD_MODE (1 = Dados em 0x10 carregam pesos, 0 = Modo Inferência)
+--            Bit 2: ACC_CLEAR (1 = Início do bloco de Tiling: Zera e sobrescreve acumulador)
+--            Bit 3: ACC_DUMP  (1 = Fim do bloco de Tiling: Envia resultado acumulado para PPU)
+--
 -- 0x04 (RW): QUANT_CFG (Bits 0-4: Shift, Bits 8-15: Zero Point)
--- 0x08 (RW): QUANT_MULT (32 bits)
+-- 0x08 (RW): QUANT_MULT (32 bits - Multiplicador da PPU)
+--
 -- 0x0C (RO): STATUS CSR
 --            Bit 0: Input FIFO Full
 --            Bit 1: Weight FIFO Full
 --            Bit 2: Output FIFO Empty
 --            Bit 3: Output FIFO Valid (Tem dado para ler)
--- 0x10 (WO): WRITE_WEIGHT_FIFO (Entrada de Pesos)
--- 0x14 (WO): WRITE_INPUT_FIFO  (Entrada de Ativações)
--- 0x18 (RO): READ_OUTPUT_FIFO  (Saída de Resultados)
--- 0x20+:     BIAS Registers
+--
+-- 0x10 (WO): WRITE_WEIGHT_FIFO (Entrada de Pesos - Use quando LOAD_MODE=1)
+-- 0x14 (WO): WRITE_INPUT_FIFO  (Entrada de Ativações - Use quando LOAD_MODE=0)
+-- 0x18 (RO): READ_OUTPUT_FIFO  (Saída de Resultados - Leitura remove da fila)
+--
+-- 0x20+:     BIAS Registers (0x20=Col0, 0x24=Col1, 0x28=Col2, 0x2C=Col3...)
 --
 -------------------------------------------------------------------------------------------------------------
 
