@@ -44,6 +44,8 @@ entity npu_core is
 
         clk         : in  std_logic;                         -- Sinal de clock
         rst_n       : in  std_logic;                         -- Sinal de reset síncrono local (ativo baixo)
+        acc_clear   : in  std_logic;
+        acc_dump    : in  std_logic;
         
         -----------------------------------------------------------------------------------------------------
         -- Controle
@@ -161,6 +163,8 @@ begin
         port map (
             clk       => clk,
             rst_n     => rst_n,
+            acc_clear => acc_clear,
+            acc_dump  => acc_dump,
             valid_in  => valid_to_outbuf,
             data_in   => raw_accs,
             data_out  => output_accs,

@@ -10,9 +10,10 @@
 --  ╚═════╝  ╚═════╝    ╚═╝   ╚═╝      ╚═════╝    ╚═╝                                                     
 --
 -- Descrição: Neural Processing Unit (NPU) - Output Buffer para Acumuladores (remove SKEW)
+--      + Accumulator Bank (Tiling Support) 
 --
 -- Autor    : [André Maiolini]
--- Data     : [11/01/2026]
+-- Data     : [12/01/2026]
 --
 -------------------------------------------------------------------------------------------------------------
                                                
@@ -42,7 +43,17 @@ entity output_buffer is
 
         clk         : in  std_logic;                         -- Sinal de clock
         rst_n       : in  std_logic;                         -- Sinal de reset síncrono local (ativo baixo)
+
+        -----------------------------------------------------------------------------------------------------
+        -- Controle de Tiling
+        -----------------------------------------------------------------------------------------------------
         
+        -- '1' = Primeiro tile (Sobrescreve), '0' = Tiles seguintes (Acumula)
+        acc_clear   : in std_logic; 
+
+        -- '1' = Último tile (Libera saída válida para PPU)
+        acc_dump    : in std_logic; 
+
         -----------------------------------------------------------------------------------------------------
         -- Entradas 
         -----------------------------------------------------------------------------------------------------
@@ -76,16 +87,25 @@ end entity output_buffer;
 architecture rtl of output_buffer is
 
     -- Tipos Internos
+
     type acc_array_t is array (0 to COLS-1) of npu_acc_t;
     
-    -- Inicialização com Zeros para evitar 'U' na simulação
-    signal in_unpacked  : acc_array_t := (others => (others => '0'));
-    signal out_unpacked : acc_array_t := (others => (others => '0'));
+    -- Sinais de Deskew (Estágio 1)
 
-    -- Pipeline do Valid é um SIGNAL 
-    signal valid_pipe   : std_logic_vector(0 to COLS-2) := (others => '0');
+    signal in_unpacked     : acc_array_t := (others => (others => '0'));
+    signal out_deskewed    : acc_array_t := (others => (others => '0'));
+    signal valid_deskewed  : std_logic;                                  
+
+    -- Sinais do Accumulator Bank (Estágio 2)
+
+    signal acc_regs        : acc_array_t := (others => (others => '0')); 
+    signal valid_pipe      : std_logic_vector(0 to COLS-2) := (others => '0');
 
 begin
+
+    -- ======================================================================================================
+    -- ESTÁGIO 1: DESKEW (Alinhamento Temporal)
+    -- ======================================================================================================
 
     -- Desempacotar Entrada ---------------------------------------------------------------------------------
 
@@ -106,19 +126,17 @@ begin
 
     begin
         
-        -- CASO 1: Sem Atraso (Última Coluna)
-        -- --------------------------------------------------------------------------------------------------
         GEN_NO_DELAY: if DELAY_CYCLES = 0 generate
-             out_unpacked(j) <= in_unpacked(j);
+
+            out_deskewed(j) <= in_unpacked(j);
+
         end generate;
 
-        -- CASO 2: Com Atraso (Colunas 0 até Penúltima)
-        -- --------------------------------------------------------------------------------------------------
         GEN_DELAY: if DELAY_CYCLES > 0 generate
-            
+
             type shift_reg_t is array (0 to DELAY_CYCLES-1) of npu_acc_t;
             signal shift_reg : shift_reg_t := (others => (others => '0'));
-            
+
         begin
 
             process(clk, rst_n)
@@ -132,9 +150,8 @@ begin
 
                     else
 
-                        -- Shift Register Padrão
                         shift_reg(0) <= in_unpacked(j);
-                        
+
                         if DELAY_CYCLES > 1 then
                             for k in 1 to DELAY_CYCLES-1 loop
                                 shift_reg(k) <= shift_reg(k-1);
@@ -147,15 +164,15 @@ begin
 
             end process;
 
-            out_unpacked(j) <= shift_reg(DELAY_CYCLES-1);
-            
+            out_deskewed(j) <= shift_reg(DELAY_CYCLES-1);
+
         end generate;
 
     end generate GEN_COLS;
 
 
-    -- Gerar Valid Out (Atraso total para alinhar o sinal de validade) --------------------------------------
-    
+    -- Alinhamento do Valid (Pipeline de Controle) ----------------------------------------------------------
+
     process(clk, rst_n)
     begin
 
@@ -178,14 +195,66 @@ begin
 
     end process;
 
-    valid_out <= valid_pipe(COLS-2);
+    valid_deskewed <= valid_pipe(COLS-2);
 
-    -- Empacotar Saída --------------------------------------------------------------------------------------
+    -- ======================================================================================================
+    -- ESTÁGIO 2: ACCUMULATOR BANK (Soma sobre o tempo)
+    -- ======================================================================================================
 
-    process(out_unpacked)
+    process(clk, rst_n)
+    begin
+
+        if rising_edge(clk) then
+
+            if rst_n = '0' then
+
+                acc_regs   <= (others => (others => '0'));
+                valid_out  <= '0';
+
+            else
+                
+                -- Padrão: Valid out é zero até que o Dump seja ativado
+                valid_out <= '0';
+
+                -- Só processamos se o dado vindo do array (já alinhado) for válido
+                if valid_deskewed = '1' then
+                    
+                    for j in 0 to COLS-1 loop
+                        if acc_clear = '1' then
+                            -- INÍCIO DO TILE: Sobrescreve o acumulador com o novo dado
+                            -- Isso descarta a soma anterior (que já deve ter sido lida)
+                            acc_regs(j) <= out_deskewed(j);
+                        else
+                            -- MEIO DO TILE: Soma o novo dado ao acumulado
+                            acc_regs(j) <= acc_regs(j) + out_deskewed(j);
+                        end if;
+                    end loop;
+
+                    -- FIM DO TILE: Se o sinal de Dump estiver ativo, liberamos o dado para a PPU
+                    if acc_dump = '1' then
+                        valid_out <= '1';
+                    end if;
+                    
+                end if;
+
+            end if;
+
+        end if;
+
+    end process;
+
+    -- ======================================================================================================
+    -- SAÍDA FINAL
+    -- ======================================================================================================
+
+    -- Empacota o conteúdo dos registradores de acumulação para a saída
+    -- Nota: Se acc_dump = '0', data_out ainda mostra o valor acumulando (spy), 
+    -- mas valid_out = '0' impede a PPU de consumir.
+
+    process(acc_regs)
     begin
         for j in 0 to COLS-1 loop
-            data_out((j+1)*ACC_W-1 downto j*ACC_W) <= std_logic_vector(out_unpacked(j));
+            data_out((j+1)*ACC_W-1 downto j*ACC_W) <= std_logic_vector(acc_regs(j));
         end loop;
     end process;
 

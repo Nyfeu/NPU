@@ -99,6 +99,8 @@ architecture rtl of npu_top is
     signal r_quant_zero   : std_logic_vector(DATA_W-1 downto 0) := (others => '0');
     signal r_quant_mult   : std_logic_vector(QUANT_W-1 downto 0) := (others => '0');
     signal r_bias_vec     : std_logic_vector((COLS * ACC_W)-1 downto 0) := (others => '0');
+    signal r_acc_clear    : std_logic := '0';
+    signal r_acc_dump     : std_logic := '0';
 
     -- Interfaces das FIFOs ---------------------------------------------------------------------------------
     
@@ -150,29 +152,43 @@ begin
 
         if rising_edge(clk) then
             if rst_n = '0' then
+
                 r_en_relu     <= '0';
                 r_load_mode   <= '0';
                 r_quant_shift <= (others => '0');
                 r_quant_zero  <= (others => '0');
                 r_quant_mult  <= (others => '0');
                 r_bias_vec    <= (others => '0');
+                r_acc_clear   <= '0';
+                r_acc_dump    <= '0';
+
             elsif write_strobe = '1' then
+
                 case reg_addr is
+
                     when 16#00# => -- Control
                         r_en_relu   <= data_i(0);
                         r_load_mode <= data_i(1);
+                        r_acc_clear <= data_i(2); -- Bit 2: Inicia acumulação (Zera)
+                        r_acc_dump  <= data_i(3); -- Bit 3: Finaliza e envia
+
                     when 16#04# => -- Quant Config
                         r_quant_shift <= data_i(4 downto 0);
                         r_quant_zero  <= data_i(15 downto 8);
+
                     when 16#08# => -- Mult
                         r_quant_mult <= data_i;
+
                     -- Bias Mapping
                     when 16#20# => r_bias_vec(31 downto 0)   <= data_i;
                     when 16#24# => r_bias_vec(63 downto 32)  <= data_i;
                     when 16#28# => r_bias_vec(95 downto 64)  <= data_i;
                     when 16#2C# => r_bias_vec(127 downto 96) <= data_i;
+
                     when others => null;
+
                 end case;
+
             end if;
         end if;
 
@@ -243,6 +259,8 @@ begin
         port map (
             clk           => clk,
             rst_n         => rst_n,
+            acc_clear     => r_acc_clear,
+            acc_dump      => r_acc_dump,
             load_weight   => core_load_weight,
             valid_in      => core_valid_in,
             input_weights => wfifo_r_data,                       -- Dados vêm direto da FIFO
@@ -294,6 +312,8 @@ begin
             when 16#00# => -- Control
                 data_o(0) <= r_en_relu;
                 data_o(1) <= r_load_mode;
+                data_o(2) <= r_acc_clear; 
+                data_o(3) <= r_acc_dump;  
             when 16#04# => -- Quant
                 data_o(4 downto 0)  <= r_quant_shift;
                 data_o(15 downto 8) <= r_quant_zero;
