@@ -152,9 +152,7 @@ begin
     ---------------------------------------------------------------------------------------------------------
 
     write_strobe <= '1' when (sel_i = '1' and we_i = '1') else '0';
-    reg_addr     <= to_integer(unsigned(addr_i(7 downto 0)))
-                    when (addr_i(0) = '0' or addr_i(0) = '1') 
-                    else 0;
+    reg_addr <= to_integer(unsigned(addr_i(7 downto 0))) when (addr_i(0) = '0' or addr_i(0) = '1') else 0;
 
     process(clk, rst_n)
     begin
@@ -314,7 +312,7 @@ begin
     
     process(reg_addr, r_en_relu, r_load_mode, r_quant_shift, r_quant_zero, 
             r_quant_mult, wfifo_w_ready, ififo_w_ready, ofifo_r_valid, 
-            ofifo_r_data, r_bias_vec)
+            ofifo_r_data, r_bias_vec, r_acc_clear, r_acc_dump)
     begin
         data_o <= (others => '0');
         case reg_addr is

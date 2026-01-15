@@ -1,26 +1,22 @@
 # ==============================================================================
-# NPU Project - Main Makefile
+# NPU Project Makefile
 # ==============================================================================
 
-# Diretórios Principais
-PROJECT_ROOT := $(shell pwd)
-RTL_DIR      := $(PROJECT_ROOT)/rtl
-TB_DIR       := $(PROJECT_ROOT)/sim
-BUILD_DIR    := $(PROJECT_ROOT)/build
+# Configurações básicas (Variáveis apenas)
+include mk/config.mk
+include mk/sources.mk
 
-# Configurações Padrão
-SIM           ?= ghdl
-TOPLEVEL_LANG ?= vhdl
+# Forçar o Help como padrão
+.DEFAULT_GOAL := help
 
-# Utiliza PHONY targets para evitar conflitos com arquivos do sistema
-.PHONY: all help cocotb view clean
+# Includes de Regras (Contêm targets)
+include mk/rules_sim.mk
+include mk/rules_fpga.mk
 
-# Target padrão: Mostra o banner de ajuda
+# Target Help (Onde está o banner)
+.PHONY: all help clean
+
 all: help
-
-# ------------------------------------------------------------------------------
-# Target: Help (Banner)
-# ------------------------------------------------------------------------------
 
 help:
 	@echo " "
@@ -41,105 +37,42 @@ help:
 	@echo " "  
 	@echo "   Target       : Neural Processing Unit (NPU)"
 	@echo "   Architecture : Systolic Array Accelerator"
-	@echo "   Tooling      : Make + GHDL + Cocotb + GTKWave"
+	@echo "   Tooling      : Make + GHDL + Cocotb + GTKWave + Vivado"
 	@echo " "
 	@echo " "
 	@echo " 🧪 SIMULATION & VERIFICATION"
 	@echo " ──────────────────────────────────────────────────────────────────────────────────────────"
 	@echo " "
-	@echo "   make cocotb TOP=<top> TEST=<test>        Rodar simulação Cocotb do módulo especificado"
-	@echo "   make view TEST=<test>                    Abrir formas de onda (VCD) no GTKWave"
+	@echo "   make cocotb TOP=<top> TEST=<test>        Rodar simulação Cocotb"
+	@echo "   make view TEST=<test>                    Abrir ondas no GTKWave"
+	@echo "   make sim_mnist                           Atalho: Simulação do MNIST"
+	@echo "   make sim_iris                            Atalho: Simulação do IRIS"
 	@echo " "
 	@echo " "
-	@echo " 📦 BUILD & HOUSEKEEPING"
+	@echo " 🛠️  FPGA WORKFLOW (Inteligente)"
 	@echo " ──────────────────────────────────────────────────────────────────────────────────────────"
 	@echo " "
-	@echo "   make                                     Mostrar este menu de ajuda"
-	@echo "   make clean                               Remover artefatos de build e simulação"
+	@echo "   make fpga                                Verificar bitstream, gerar se necessário e programar"
+	@echo "   make fpga_bit                            Forçar geração do Bitstream (Vivado)"
+	@echo "   make fpga_prog                           Apenas programar (sem check)"
 	@echo " "
 	@echo " "
-	@echo " 📌 EXAMPLES"
+	@echo " 🐍 HARDWARE-IN-THE-LOOP (HIL)"
 	@echo " ──────────────────────────────────────────────────────────────────────────────────────────"
 	@echo " "
-	@echo "   make cocotb TOP=systolic_array TEST=test_array"
-	@echo "   make view TEST=test_array"
+	@echo "   make hil TEST=<script>                   Rodar script Python da pasta sw/"
+	@echo "   make hil_mnist                           Atalho: Rodar HIL do MNIST"
+	@echo "   make hil_iris                            Atalho: Rodar HIL do IRIS"
+	@echo " "
+	@echo " "
+	@echo " 📦 HOUSEKEEPING"
+	@echo " ──────────────────────────────────────────────────────────────────────────────────────────"
+	@echo " "
+	@echo "   make clean                               Limpar tudo"
 	@echo " "
 	@echo " "
 	@echo "============================================================================================"
 	@echo " "
 
-
-# ------------------------------------------------------------------------------
-# Target: Cocotb (Simulação)
-# ------------------------------------------------------------------------------
-
-# Mapeia as variáveis (TOP, TEST) para as variáveis do Cocotb
-
-cocotb:
-ifndef TOP
-	$(error Erro: Defina TOP=<nome_entidade>)
-endif
-ifndef TEST
-	$(error Erro: Defina TEST=<nome_arquivo_python> (sem a extensão .py))
-endif
-	@mkdir -p $(BUILD_DIR)
-	$(eval TEST_FILE := $(shell find $(TB_DIR) -name "$(TEST).py" -print -quit))
-	@if [ -z "$(TEST_FILE)" ]; then \
-		echo " "; \
-		echo ">>> ❌ Erro: Arquivo '$(TEST).py' não encontrado em subpastas de '$(TB_DIR)'"; \
-		echo " "; \
-		exit 1; \
-	fi
-	$(eval TEST_DIR := $(shell dirname $(TEST_FILE)))
-	@echo " "
-	@echo "======================================================================"
-	@echo " "
-	@echo ">>> 🧪 COCOTB - Iniciando Testes Automatizados"
-	@echo " "
-	@echo "======================================================================"
-	@echo " "
-	@echo ">>> 🏗️  Top Level :  $(TOP)"
-	@echo ">>> 📂 Testbench :  $(TEST).py"
-	@echo ">>> 📍 Local     :  $(TEST_DIR)"
-	@echo " "
-	@echo "======================================================================"
-	@echo " "
-	@export COCOTB_ANSI_OUTPUT=1; \
-	export COCOTB_RESULTS_FILE=$(BUILD_DIR)/results.xml; \
-	PYTHONPATH=$(TB_DIR):$(TEST_DIR) $(MAKE) -s -f $(shell cocotb-config --makefiles)/Makefile.sim \
-		TOPLEVEL=$(TOP) \
-		MODULE=$(TEST) \
-		VHDL_SOURCES="$(shell find $(RTL_DIR) -name '*.vhd')" \
-		SIM_BUILD=$(BUILD_DIR) \
-		SIM_ARGS="--vcd=$(BUILD_DIR)/$(TEST).vcd" \
-		SIM=$(SIM) \
-		TOPLEVEL_LANG=$(TOPLEVEL_LANG) \
-		2>&1 | grep -v "vpi_iterate returned NULL"
-
-	@echo " "
-	@echo ">>> ✅ Teste concluído"
-	@echo ">>> 🌊 Ondas: $(BUILD_DIR)/$(TEST).vcd"
-
-# ------------------------------------------------------------------------------
-# Target: View (Ondas)
-# ------------------------------------------------------------------------------
-
-view:
-ifndef TEST
-	$(error Erro: Defina TEST=<nome_arquivo_python>)
-endif
-	@echo ">>> 📊 Abrindo GTKWave..."
-	@if [ -f $(BUILD_DIR)/$(TEST).vcd ]; then \
-		gtkwave $(BUILD_DIR)/$(TEST).vcd > /dev/null 2>&1 & \
-	else \
-		echo ">>> ❌ Erro: Onda não encontrada."; \
-	fi
-
-# ------------------------------------------------------------------------------
-# Target: Clean
-# ------------------------------------------------------------------------------
-
-clean:
-	@rm -rf $(BUILD_DIR) results.xml __pycache__
-	@rm -rf $(TB_DIR)/__pycache__
-	@echo ">>> 🧹 Limpeza concluída."
+clean: clean_sim clean_fpga
+	@echo ">>> Limpeza Concluída."
