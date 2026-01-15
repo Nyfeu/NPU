@@ -37,7 +37,7 @@ fpga_bit:
 
 # Apenas Programa (Assume que o bitstream existe)
 fpga_prog:
-	@echo ">>> [FPGA] Programando via JTAG..."
+	@echo ">>> [FPGA] Programando a placa..."
 	$(VIVADO) $(VIVADO_FLAGS) -source $(FPGA_DIR)/scripts/program.tcl
 	@if [ -f vivado.log ]; then mv vivado.log $(BUILD_DIR)/prog_vivado.log; fi
 	@if [ -f vivado.jou ]; then mv vivado.jou $(BUILD_DIR)/prog_vivado.jou; fi
