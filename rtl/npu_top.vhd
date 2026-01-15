@@ -314,30 +314,41 @@ begin
             r_quant_mult, wfifo_w_ready, ififo_w_ready, ofifo_r_valid, 
             ofifo_r_data, r_bias_vec, r_acc_clear, r_acc_dump)
     begin
+        -- Valor padrão
         data_o <= (others => '0');
+
         case reg_addr is
             when 16#00# => -- Control
                 data_o(0) <= r_en_relu;
                 data_o(1) <= r_load_mode;
-                data_o(2) <= r_acc_clear; 
-                data_o(3) <= r_acc_dump;  
-            when 16#04# => -- Quant
+                data_o(2) <= r_acc_clear;
+                data_o(3) <= r_acc_dump;
+
+            when 16#04# => -- Quant Config
                 data_o(4 downto 0)  <= r_quant_shift;
                 data_o(15 downto 8) <= r_quant_zero;
+
             when 16#08# => -- Mult
                 data_o <= r_quant_mult;
-            when 16#0C# => -- STATUS (CRÍTICO PARA O DMA)
-                data_o(0) <= not ififo_w_ready; -- Input FIFO Full
-                data_o(1) <= not wfifo_w_ready; -- Weight FIFO Full
-                data_o(2) <= not ofifo_r_valid; -- Output FIFO Empty
-                data_o(3) <= ofifo_r_valid;     -- Output Data Available
+
+            when 16#0C# => -- STATUS
+                data_o(0) <= not ififo_w_ready; -- Input Full
+                data_o(1) <= not wfifo_w_ready; -- Weight Full
+                data_o(2) <= not ofifo_r_valid; -- Output Empty
+                data_o(3) <= ofifo_r_valid;     -- Output Valid
+
             when 16#18# => -- Leitura da FIFO de Saída
+                -- IMPORTANTE: A FIFO já disponibiliza o dado na saída (First Word Fall Through)
+                -- ou o dado na cabeça da fila. Conectamos direto.
                 data_o <= ofifo_r_data;
+
             when 16#20# => data_o <= r_bias_vec(31 downto 0);
             when 16#24# => data_o <= r_bias_vec(63 downto 32);
             when 16#28# => data_o <= r_bias_vec(95 downto 64);
             when 16#2C# => data_o <= r_bias_vec(127 downto 96);
-            when others => null;
+
+            when others => 
+                data_o <= (others => '0');
         end case;
     end process;
 
