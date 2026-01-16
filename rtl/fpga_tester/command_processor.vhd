@@ -40,11 +40,12 @@ entity command_processor is
         tx_busy     : in  std_logic;
 
         -- Master Bus Interface (Conecta na NPU)
-        m_sel       : out std_logic;
+        m_vld       : out std_logic;
         m_we        : out std_logic;
         m_addr      : out std_logic_vector(31 downto 0);
         m_wdata     : out std_logic_vector(31 downto 0);
-        m_rdata     : in  std_logic_vector(31 downto 0)
+        m_rdata     : in  std_logic_vector(31 downto 0);
+        m_rdy       : in std_logic
 
     );
 
@@ -83,13 +84,13 @@ begin
         if rising_edge(clk) then
             if rst = '0' then -- Reset Active Low (comum na sua NPU)
                 state <= IDLE;
-                m_sel <= '0';
+                m_vld <= '0';
                 m_we  <= '0';
                 tx_start <= '0';
             else
                 -- Defaults
                 tx_start <= '0';
-                m_sel    <= '0';
+                m_vld    <= '0';
                 m_we     <= '0';
 
                 case state is
@@ -134,18 +135,22 @@ begin
                     
                     when EXEC_WRITE =>
                         -- Pulsa o barramento por 1 ciclo
-                        m_sel <= '1';
+                        m_vld <= '1';
                         m_we  <= '1';
                         -- Endereço e Dados já estão setados (signals)
-                        state <= IDLE;
+                        if m_rdy = '1' then 
+                            state <= IDLE;
+                        end if;
 
                     when EXEC_READ =>
                         -- Configura barramento para leitura
-                        m_sel <= '1';
+                        m_vld <= '1';
                         m_we  <= '0';
                         -- A NPU deve responder combinacionalmente ou no prox clock.
                         -- Vamos dar 1 ciclo de espera para garantir estabilidade.
-                        state <= CAPTURE_READ;
+                        if m_rdy = '1' then  
+                            state <= CAPTURE_READ;
+                        end if;
 
                     when CAPTURE_READ =>
                         -- Mantém SEL alto se necessário, ou captura agora

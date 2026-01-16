@@ -76,7 +76,8 @@ entity npu_top is
         -- Interface para Mapeamento em Memória (MMIO)
         -----------------------------------------------------------------------------------------------------
 
-        sel_i       : in  std_logic;                             -- Chip Select
+        vld_i       : in  std_logic;                             -- Valid
+        rdy_o       : out std_logic;                             -- Ready
         we_i        : in  std_logic;                             -- 1=Write, 0=Read
         addr_i      : in  std_logic_vector(31 downto 0);         -- Endereço
         data_i      : in  std_logic_vector(31 downto 0);         -- Dado vindo da CPU
@@ -151,7 +152,7 @@ begin
     -- 1. DECODIFICAÇÃO DE ENDEREÇO E ESCRITA (MMIO)
     ---------------------------------------------------------------------------------------------------------
 
-    write_strobe <= '1' when (sel_i = '1' and we_i = '1') else '0';
+    write_strobe <= '1' when (vld_i = '1' and we_i = '1') else '0';
     reg_addr <= to_integer(unsigned(addr_i(7 downto 0))) when (addr_i(0) = '0' or addr_i(0) = '1') else 0;
 
     process(clk, rst_n)
@@ -231,7 +232,7 @@ begin
 
     -- Output FIFO (Saída PPU -> Leitura DMA)
     -- O 'w_valid' vem do PPU, o 'r_ready' vem da leitura do barramento
-    ofifo_r_ready <= '1' when (sel_i = '1' and we_i = '0' and reg_addr = 16#18#) else '0';
+    ofifo_r_ready <= '1' when (vld_i = '1' and we_i = '0' and reg_addr = 16#18#) else '0';
 
     u_fifo_out : entity work.fifo_sync
         generic map (DATA_W => 32, DEPTH => FIFO_DEPTH)
@@ -350,6 +351,32 @@ begin
             when others => 
                 data_o <= (others => '0');
         end case;
+    end process;
+
+    ---------------------------------------------------------------------------------------------------------
+    -- 6. GERAÇÃO DO HANDSHAKE READY (Backpressure)
+    ---------------------------------------------------------------------------------------------------------
+    -- Esta lógica sinaliza ao barramento se a NPU pode aceitar a transação atual.
+
+    process(vld_i, we_i, reg_addr, wfifo_w_ready, ififo_w_ready, ofifo_r_valid)
+    begin
+        if vld_i = '1' then
+            if we_i = '1' then -- Tentativa de Escrita
+                case reg_addr is
+                    when 16#10# => rdy_o <= wfifo_w_ready; -- Ready se Weight FIFO não estiver cheia
+                    when 16#14# => rdy_o <= ififo_w_ready; -- Ready se Input FIFO não estiver cheia
+                    when others => rdy_o <= '1';           -- CSRs e Bias são single-cycle
+                end case;
+            else -- Tentativa de Leitura
+                if reg_addr = 16#18# then
+                    rdy_o <= ofifo_r_valid; -- Ready se houver dado na Output FIFO
+                else
+                    rdy_o <= '1';           -- Leitura de CSRs e Status é instantânea
+                end if;
+            end if;
+        else
+            rdy_o <= '1'; -- Quando não selecionada, mantém em '1' por convenção
+        end if;
     end process;
 
 end architecture; -- rtl

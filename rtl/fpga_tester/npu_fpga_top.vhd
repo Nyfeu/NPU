@@ -49,7 +49,7 @@ architecture rtl of npu_fpga_top is
     signal rx_dv, tx_start, tx_busy : std_logic;
 
     -- Bus Signals (Processador -> NPU)
-    signal bus_sel, bus_we : std_logic;
+    signal bus_vld, bus_we, bus_rdy : std_logic;
     signal bus_addr, bus_wdata, bus_rdata : std_logic_vector(31 downto 0);
 
 begin
@@ -77,7 +77,7 @@ begin
             RX_DATA => rx_data, RX_DV => rx_dv,
             TX_DATA => tx_data, TX_START => tx_start, TX_BUSY => tx_busy,
             -- Interface Bus
-            M_SEL => bus_sel, M_WE => bus_we,
+            M_VLD => bus_vld, M_WE => bus_we, M_RDY => bus_rdy,
             M_ADDR => bus_addr, M_WDATA => bus_wdata, M_RDATA => bus_rdata
         );
 
@@ -88,7 +88,7 @@ begin
         )
         port map (
             clk => CLK_i, rst_n => rst_n,
-            sel_i => bus_sel, we_i => bus_we,
+            vld_i => bus_vld, we_i => bus_we, rdy_o => bus_rdy,
             addr_i => bus_addr, data_i => bus_wdata, data_o => bus_rdata
         );
 

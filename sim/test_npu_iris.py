@@ -46,20 +46,45 @@ COLS = 4
 class MMIO_Driver:
     def __init__(self, dut):
         self.dut = dut
-        self.dut.sel_i.value = 0; self.dut.we_i.value = 0; self.dut.addr_i.value = 0; self.dut.data_i.value = 0
+        # Inicializa sinais em '0'
+        self.dut.vld_i.value = 0
+        self.dut.we_i.value = 0
+        self.dut.addr_i.value = 0
+        self.dut.data_i.value = 0
 
     async def write(self, addr, data):
-        await RisingEdge(self.dut.clk)
-        self.dut.sel_i.value = 1; self.dut.we_i.value = 1; self.dut.addr_i.value = addr; self.dut.data_i.value = int(data) & 0xFFFFFFFF
-        await RisingEdge(self.dut.clk)
-        self.dut.sel_i.value = 0; self.dut.we_i.value = 0
+        # 1. Sinaliza a intenção de escrita (Valid)
+        self.dut.vld_i.value = 1
+        self.dut.we_i.value = 1
+        self.dut.addr_i.value = addr
+        self.dut.data_i.value = int(data) & 0xFFFFFFFF
+        
+        # 2. Espera pelo flanco de clock onde o READY da NPU é '1'
+        while True:
+            await RisingEdge(self.dut.clk)
+            if self.dut.rdy_o.value == 1:
+                break
+        
+        # 3. Finaliza a transação
+        self.dut.vld_i.value = 0
+        self.dut.we_i.value = 0
 
     async def read(self, addr):
-        await RisingEdge(self.dut.clk)
-        self.dut.sel_i.value = 1; self.dut.we_i.value = 0; self.dut.addr_i.value = addr
-        await RisingEdge(self.dut.clk)
-        val = self.dut.data_o.value
-        self.dut.sel_i.value = 0
+        # 1. Sinaliza intenção de leitura
+        self.dut.vld_i.value = 1
+        self.dut.we_i.value = 0
+        self.dut.addr_i.value = addr
+        
+        # 2. Espera o READY (dado pronto para ser capturado)
+        while True:
+            await RisingEdge(self.dut.clk)
+            if self.dut.rdy_o.value == 1:
+                # Captura o dado no mesmo ciclo que o Ready está alto
+                val = self.dut.data_o.value
+                break
+        
+        # 3. Finaliza
+        self.dut.vld_i.value = 0
         try: return int(val)
         except: return 0
 
