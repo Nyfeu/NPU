@@ -96,8 +96,12 @@ architecture rtl of npu_top is
 
     -- Sinais de Controle do Barramento ---------------------------------------------------------------------
 
-    signal write_strobe : std_logic;
-    signal reg_addr     : integer;
+    signal write_strobe   : std_logic;
+    signal reg_addr       : integer;
+
+    -- Debounce de Barramento -------------------------------------------------------------------------------
+
+    signal s_write_done   : std_logic := '0';
 
     -- Registradores de Configuração (CSRs) -----------------------------------------------------------------
 
@@ -155,16 +159,38 @@ begin
     -- Resposta imediata (Always Ready) para evitar travar o barramento
     rdy_o <= '1';
 
-    -- Pulso de escrita apenas se transação válida
-    write_strobe <= '1' when (vld_i = '1' and we_i = '1') else '0';
-
-    -- Simplificação do endereço (pega apenas o offset, ignora bits superiores)
+    -- Endereço simplificado
     reg_addr <= to_integer(unsigned(addr_i(7 downto 0)));
 
+    -- Lógica de Proteção de Escrita (Borda de Subida Virtual)
+    process(clk, rst_n)
+    begin
+        if rising_edge(clk) then
+            if rst_n = '0' then
+                s_write_done <= '0';
+            else
+                if vld_i = '0' then
+                    -- Se o barramento baixou o valid, resetamos a flag
+                    s_write_done <= '0';
+                elsif vld_i = '1' and we_i = '1' then
+                    -- Se estamos escrevendo, marcamos como "feito" para bloquear o próximo ciclo
+                    s_write_done <= '1';
+                end if;
+            end if;
+        end if;
+    end process;
+
+    -- O Strobe de escrita só é '1' se for Valid + Write E se ainda não tivermos escrito nessa transação.
+    -- Isso gera um pulso de exatamente 1 clock, independente de quanto tempo o SoC segura o 'vld_i'.
+    write_strobe <= '1' when (vld_i = '1' and we_i = '1' and s_write_done = '0') else '0';
+
+
+    -- Processo de Escrita nos Registradores
     process(clk, rst_n)
     begin
 
         if rising_edge(clk) then
+
             if rst_n = '0' then
 
                 r_en_relu     <= '0';
@@ -183,8 +209,8 @@ begin
                     when 16#00# => -- Control
                         r_en_relu   <= data_i(0);
                         r_load_mode <= data_i(1);
-                        r_acc_clear <= data_i(2); -- Bit 2: Inicia acumulação (Zera)
-                        r_acc_dump  <= data_i(3); -- Bit 3: Finaliza e envia
+                        r_acc_clear <= data_i(2);
+                        r_acc_dump  <= data_i(3);
 
                     when 16#04# => -- Quant Config
                         r_quant_shift <= data_i(4 downto 0);
@@ -193,7 +219,6 @@ begin
                     when 16#08# => -- Mult
                         r_quant_mult <= data_i;
 
-                    -- Bias Mapping
                     when 16#20# => r_bias_vec(31 downto 0)   <= data_i;
                     when 16#24# => r_bias_vec(63 downto 32)  <= data_i;
                     when 16#28# => r_bias_vec(95 downto 64)  <= data_i;
@@ -204,6 +229,7 @@ begin
                 end case;
 
             end if;
+
         end if;
 
     end process;
@@ -213,8 +239,6 @@ begin
     ---------------------------------------------------------------------------------------------------------
     
     -- Lógica de Escrita nas FIFOs via Barramento
-
-    -- Se escrever no endereço X, ativa o w_valid da FIFO correspondente
     wfifo_w_valid <= '1' when (write_strobe = '1' and reg_addr = 16#10#) else '0';
     ififo_w_valid <= '1' when (write_strobe = '1' and reg_addr = 16#14#) else '0';
     
@@ -237,8 +261,7 @@ begin
         );
 
     -- Output FIFO (Saída PPU -> Leitura DMA)
-    -- O 'w_valid' vem do PPU, o 'r_ready' vem da leitura do barramento
-    ofifo_r_ready <= '1' when (vld_i = '1' and we_i = '0' and reg_addr = 16#18#) else '0';
+    ofifo_r_ready <= '1' when (vld_i = '1' and we_i = '0' and reg_addr = 16#18# and s_write_done = '0') else '0';
 
     u_fifo_out : entity work.fifo_sync
         generic map (DATA_W => 32, DEPTH => FIFO_DEPTH)
@@ -255,14 +278,12 @@ begin
     -- Lógica: Se a FIFO tem dados (valid) E a NPU está no modo correto, consumimos (ready)
     
     -- Controle de Pesos
-    -- Só consome da FIFO se estivermos em LOAD_MODE
     wfifo_r_ready    <= '1' when (wfifo_r_valid = '1' and r_load_mode = '1') else '0';
-    core_load_weight <= wfifo_r_ready; -- Pulsa o load da NPU quando consumimos um dado
+    core_load_weight <= wfifo_r_ready;
 
     -- Controle de Ativações
-    -- Só consome da FIFO se NÃO estivermos carregando pesos (Modo Inferência)
     ififo_r_ready    <= '1' when (ififo_r_valid = '1' and r_load_mode = '0') else '0';
-    core_valid_in    <= ififo_r_ready; -- Pulsa o valid da NPU quando consumimos um dado
+    core_valid_in    <= ififo_r_ready;
 
     ---------------------------------------------------------------------------------------------------------
     -- 4. NPU CORE & PPUs
@@ -277,8 +298,8 @@ begin
             acc_dump      => r_acc_dump,
             load_weight   => core_load_weight,
             valid_in      => core_valid_in,
-            input_weights => wfifo_r_data,                       -- Dados vêm direto da FIFO
-            input_acts    => ififo_r_data,                       -- Dados vêm direto da FIFO
+            input_weights => wfifo_r_data,
+            input_acts    => ififo_r_data,
             valid_out     => core_to_ppu_valid,
             output_accs   => core_accs
         );
@@ -305,7 +326,7 @@ begin
     end generate;
 
     -- Conexão da Saída PPU -> Output FIFO
-    ofifo_w_valid <= ppu_valid_vec(0); -- Assume sincronia entre colunas
+    ofifo_w_valid <= ppu_valid_vec(0);
     
     -- Ajuste de largura: Output Data (32 bits, empacotando 4 bytes)
     -- Atenção: Se COLS*DATA_W > 32, precisará de lógica extra. Aqui assume 4x8=32.
@@ -321,6 +342,7 @@ begin
     begin
         data_o <= (others => '0');
         case reg_addr is
+
             when 16#00# => -- Control
                 data_o(0) <= r_en_relu;
                 data_o(1) <= r_load_mode;
@@ -331,16 +353,15 @@ begin
                 data_o(4 downto 0)  <= r_quant_shift;
                 data_o(15 downto 8) <= r_quant_zero;
 
-            when 16#08# => -- Mult
-                data_o <= r_quant_mult;
+            when 16#08# => data_o <= r_quant_mult;
 
-            when 16#0C# => -- STATUS (Software usa isso para controle de fluxo)
-                data_o(0) <= not ififo_w_ready; -- Input Full
-                data_o(1) <= not wfifo_w_ready; -- Weight Full
-                data_o(2) <= not ofifo_r_valid; -- Output Empty
-                data_o(3) <= ofifo_r_valid;     -- Output Valid
+            when 16#0C# => -- STATUS
+                data_o(0) <= not ififo_w_ready;
+                data_o(1) <= not wfifo_w_ready;
+                data_o(2) <= not ofifo_r_valid;
+                data_o(3) <= ofifo_r_valid;
 
-            when 16#18# => -- Leitura da FIFO de Saída
+            when 16#18# => -- Leitura da FIFO
                 data_o <= ofifo_r_data;
 
             when 16#20# => data_o <= r_bias_vec(31 downto 0);
@@ -348,9 +369,10 @@ begin
             when 16#28# => data_o <= r_bias_vec(95 downto 64);
             when 16#2C# => data_o <= r_bias_vec(127 downto 96);
 
-            when others => 
-                data_o <= (others => '0');
+            when others => data_o <= (others => '0');
+
         end case;
+        
     end process;
 
     ---------------------------------------------------------------------------------------------------------
