@@ -152,8 +152,14 @@ begin
     -- 1. DECODIFICAÇÃO DE ENDEREÇO E ESCRITA (MMIO)
     ---------------------------------------------------------------------------------------------------------
 
+    -- Resposta imediata (Always Ready) para evitar travar o barramento
+    rdy_o <= '1';
+
+    -- Pulso de escrita apenas se transação válida
     write_strobe <= '1' when (vld_i = '1' and we_i = '1') else '0';
-    reg_addr <= to_integer(unsigned(addr_i(7 downto 0))) when (addr_i(0) = '0' or addr_i(0) = '1') else 0;
+
+    -- Simplificação do endereço (pega apenas o offset, ignora bits superiores)
+    reg_addr <= to_integer(unsigned(addr_i(7 downto 0)));
 
     process(clk, rst_n)
     begin
@@ -281,7 +287,6 @@ begin
 
     GEN_PPUS: for i in 0 to COLS-1 generate
     begin
-
         u_ppu : entity work.post_process
             generic map (ACC_W => ACC_W, DATA_W => DATA_W, QUANT_W => QUANT_W)
             port map (
@@ -297,7 +302,6 @@ begin
                 valid_out   => ppu_valid_vec(i),
                 data_out    => core_output_data((i+1)*DATA_W-1 downto i*DATA_W)
             );
-
     end generate;
 
     -- Conexão da Saída PPU -> Output FIFO
@@ -315,9 +319,7 @@ begin
             r_quant_mult, wfifo_w_ready, ififo_w_ready, ofifo_r_valid, 
             ofifo_r_data, r_bias_vec, r_acc_clear, r_acc_dump)
     begin
-        -- Valor padrão
         data_o <= (others => '0');
-
         case reg_addr is
             when 16#00# => -- Control
                 data_o(0) <= r_en_relu;
@@ -332,15 +334,13 @@ begin
             when 16#08# => -- Mult
                 data_o <= r_quant_mult;
 
-            when 16#0C# => -- STATUS
+            when 16#0C# => -- STATUS (Software usa isso para controle de fluxo)
                 data_o(0) <= not ififo_w_ready; -- Input Full
                 data_o(1) <= not wfifo_w_ready; -- Weight Full
                 data_o(2) <= not ofifo_r_valid; -- Output Empty
                 data_o(3) <= ofifo_r_valid;     -- Output Valid
 
             when 16#18# => -- Leitura da FIFO de Saída
-                -- IMPORTANTE: A FIFO já disponibiliza o dado na saída (First Word Fall Through)
-                -- ou o dado na cabeça da fila. Conectamos direto.
                 data_o <= ofifo_r_data;
 
             when 16#20# => data_o <= r_bias_vec(31 downto 0);
@@ -354,30 +354,7 @@ begin
     end process;
 
     ---------------------------------------------------------------------------------------------------------
-    -- 6. GERAÇÃO DO HANDSHAKE READY (Backpressure)
-    ---------------------------------------------------------------------------------------------------------
-    -- Esta lógica sinaliza ao barramento se a NPU pode aceitar a transação atual.
-
-    process(vld_i, we_i, reg_addr, wfifo_w_ready, ififo_w_ready, ofifo_r_valid)
-    begin
-        if vld_i = '1' then
-            if we_i = '1' then -- Tentativa de Escrita
-                case reg_addr is
-                    when 16#10# => rdy_o <= wfifo_w_ready; -- Ready se Weight FIFO não estiver cheia
-                    when 16#14# => rdy_o <= ififo_w_ready; -- Ready se Input FIFO não estiver cheia
-                    when others => rdy_o <= '1';           -- CSRs e Bias são single-cycle
-                end case;
-            else -- Tentativa de Leitura
-                if reg_addr = 16#18# then
-                    rdy_o <= ofifo_r_valid; -- Ready se houver dado na Output FIFO
-                else
-                    rdy_o <= '1';           -- Leitura de CSRs e Status é instantânea
-                end if;
-            end if;
-        else
-            rdy_o <= '1'; -- Quando não selecionada, mantém em '1' por convenção
-        end if;
-    end process;
+    
 
 end architecture; -- rtl
 
