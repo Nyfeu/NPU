@@ -184,13 +184,13 @@ begin
                 s_read_fifo_pop <= '0';
 
             else
-                -- Defaults (Pulsos de 1 ciclo)
+                -- Defaults 
                 rdy_o           <= '0';
                 wfifo_w_valid   <= '0';
                 ififo_w_valid   <= '0';
                 s_read_fifo_pop <= '0';
                 
-                -- Limpa o bus de dados (boa prática)
+                -- Limpa o bus de dados 
                 data_o          <= (others => '0');
 
                 -- Lógica de Handshake
