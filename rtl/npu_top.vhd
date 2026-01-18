@@ -96,12 +96,11 @@ architecture rtl of npu_top is
 
     -- Sinais de Controle do Barramento ---------------------------------------------------------------------
 
-    signal write_strobe   : std_logic;
     signal reg_addr       : integer;
 
-    -- Debounce de Barramento -------------------------------------------------------------------------------
+    -- Flag de Acknowledge ----------------------------------------------------------------------------------
 
-    signal s_write_done   : std_logic := '0';
+    signal s_ack          : std_logic;
 
     -- Registradores de Configuração (CSRs) -----------------------------------------------------------------
 
@@ -134,6 +133,7 @@ architecture rtl of npu_top is
     signal ofifo_r_valid, ofifo_r_ready : std_logic;
     signal ofifo_w_data  : std_logic_vector(31 downto 0);
     signal ofifo_r_data  : std_logic_vector(31 downto 0);
+    signal s_read_fifo_pop  : std_logic;
 
     -- Sinais Internos do Core NPU --------------------------------------------------------------------------
 
@@ -156,43 +156,19 @@ begin
     -- 1. DECODIFICAÇÃO DE ENDEREÇO E ESCRITA (MMIO)
     ---------------------------------------------------------------------------------------------------------
 
-    -- Resposta imediata (Always Ready) para evitar travar o barramento
-    rdy_o <= '1';
-
     -- Endereço simplificado
     reg_addr <= to_integer(unsigned(addr_i(7 downto 0)));
 
-    -- Lógica de Proteção de Escrita (Borda de Subida Virtual)
+    -- Lógica da interface MMIO síncrona
     process(clk, rst_n)
     begin
         if rising_edge(clk) then
             if rst_n = '0' then
-                s_write_done <= '0';
-            else
-                if vld_i = '0' then
-                    -- Se o barramento baixou o valid, resetamos a flag
-                    s_write_done <= '0';
-                elsif vld_i = '1' and we_i = '1' then
-                    -- Se estamos escrevendo, marcamos como "feito" para bloquear o próximo ciclo
-                    s_write_done <= '1';
-                end if;
-            end if;
-        end if;
-    end process;
-
-    -- O Strobe de escrita só é '1' se for Valid + Write E se ainda não tivermos escrito nessa transação.
-    -- Isso gera um pulso de exatamente 1 clock, independente de quanto tempo o SoC segura o 'vld_i'.
-    write_strobe <= '1' when (vld_i = '1' and we_i = '1' and s_write_done = '0') else '0';
-
-
-    -- Processo de Escrita nos Registradores
-    process(clk, rst_n)
-    begin
-
-        if rising_edge(clk) then
-
-            if rst_n = '0' then
-
+                rdy_o         <= '0';
+                s_ack         <= '0';
+                data_o        <= (others => '0');
+                
+                -- Reset Registers
                 r_en_relu     <= '0';
                 r_load_mode   <= '0';
                 r_quant_shift <= (others => '0');
@@ -201,48 +177,111 @@ begin
                 r_bias_vec    <= (others => '0');
                 r_acc_clear   <= '0';
                 r_acc_dump    <= '0';
+                
+                -- Reset Control Signals
+                wfifo_w_valid   <= '0';
+                ififo_w_valid   <= '0';
+                s_read_fifo_pop <= '0';
 
-            elsif write_strobe = '1' then
+            else
+                -- Defaults (Pulsos de 1 ciclo)
+                rdy_o           <= '0';
+                wfifo_w_valid   <= '0';
+                ififo_w_valid   <= '0';
+                s_read_fifo_pop <= '0';
+                
+                -- Limpa o bus de dados (boa prática)
+                data_o          <= (others => '0');
 
-                case reg_addr is
+                -- Lógica de Handshake
+                if vld_i = '1' then
+                    
+                    -- Se ainda não demos ACK nesta transação:
+                    if s_ack = '0' then
+                        rdy_o <= '1'; -- Responde no próximo ciclo
+                        s_ack <= '1'; -- Marca que já atendemos
 
-                    when 16#00# => -- Control
-                        r_en_relu   <= data_i(0);
-                        r_load_mode <= data_i(1);
-                        r_acc_clear <= data_i(2);
-                        r_acc_dump  <= data_i(3);
+                        -- === ESCRITA ===
+                        if we_i = '1' then
+                            case reg_addr is
+                                when 16#00# => -- Control
+                                    r_en_relu   <= data_i(0);
+                                    r_load_mode <= data_i(1);
+                                    r_acc_clear <= data_i(2);
+                                    r_acc_dump  <= data_i(3);
 
-                    when 16#04# => -- Quant Config
-                        r_quant_shift <= data_i(4 downto 0);
-                        r_quant_zero  <= data_i(15 downto 8);
+                                when 16#04# => -- Quant Config
+                                    r_quant_shift <= data_i(4 downto 0);
+                                    r_quant_zero  <= data_i(15 downto 8);
 
-                    when 16#08# => -- Mult
-                        r_quant_mult <= data_i;
+                                when 16#08# => r_quant_mult <= data_i;
 
-                    when 16#20# => r_bias_vec(31 downto 0)   <= data_i;
-                    when 16#24# => r_bias_vec(63 downto 32)  <= data_i;
-                    when 16#28# => r_bias_vec(95 downto 64)  <= data_i;
-                    when 16#2C# => r_bias_vec(127 downto 96) <= data_i;
+                                -- FIFOs (Gera pulso único de escrita)
+                                when 16#10# => wfifo_w_valid <= '1'; -- Write Weight
+                                when 16#14# => ififo_w_valid <= '1'; -- Write Input
 
-                    when others => null;
+                                -- Bias
+                                when 16#20# => r_bias_vec(31 downto 0)   <= data_i;
+                                when 16#24# => r_bias_vec(63 downto 32)  <= data_i;
+                                when 16#28# => r_bias_vec(95 downto 64)  <= data_i;
+                                when 16#2C# => r_bias_vec(127 downto 96) <= data_i;
+                                
+                                when others => null;
+                            end case;
 
-                end case;
+                        -- === LEITURA ===
+                        else
+                            case reg_addr is
+                                when 16#00# => -- Control
+                                    data_o(0) <= r_en_relu;
+                                    data_o(1) <= r_load_mode;
+                                    data_o(2) <= r_acc_clear;
+                                    data_o(3) <= r_acc_dump;
 
+                                when 16#04# => -- Quant
+                                    data_o(4 downto 0)  <= r_quant_shift;
+                                    data_o(15 downto 8) <= r_quant_zero;
+
+                                when 16#08# => data_o <= r_quant_mult;
+
+                                when 16#0C# => -- STATUS
+                                    data_o(0) <= not ififo_w_ready; -- Input Full?
+                                    data_o(1) <= not wfifo_w_ready; -- Weight Full?
+                                    data_o(2) <= not ofifo_r_valid; -- Output Empty?
+                                    data_o(3) <= ofifo_r_valid;     -- Output Has Data?
+
+                                when 16#18# => -- READ OUTPUT FIFO
+                                    data_o <= ofifo_r_data;
+                                    s_read_fifo_pop <= '1'; -- Consome o dado da fila (POP)
+
+                                when 16#20# => data_o <= r_bias_vec(31 downto 0);
+                                when 16#24# => data_o <= r_bias_vec(63 downto 32);
+                                when 16#28# => data_o <= r_bias_vec(95 downto 64);
+                                when 16#2C# => data_o <= r_bias_vec(127 downto 96);
+                                
+                                when others => data_o <= (others => '0');
+                            end case;
+                        end if;
+                    
+                    else
+                        -- Se vld ainda é 1, mas ack já é 1:
+                        -- Mantemos rdy_o em 0 para forçar o Master a baixar o valid.
+                        -- Não fazemos nada (proteção contra double-write).
+                        null;
+                    end if;
+                else
+                    -- Master baixou o valid, podemos resetar o ack para a próxima
+                    s_ack <= '0';
+                end if;
             end if;
-
         end if;
-
     end process;
 
     ---------------------------------------------------------------------------------------------------------
     -- 2. BUFFERIZAÇÃO (FIFOS)
     ---------------------------------------------------------------------------------------------------------
     
-    -- Lógica de Escrita nas FIFOs via Barramento
-    wfifo_w_valid <= '1' when (write_strobe = '1' and reg_addr = 16#10#) else '0';
-    ififo_w_valid <= '1' when (write_strobe = '1' and reg_addr = 16#14#) else '0';
-    
-    -- Weight FIFO (Entrada DMA -> Core Pesos)
+    -- Weight FIFO
     u_fifo_weights : entity work.fifo_sync
         generic map (DATA_W => 32, DEPTH => FIFO_DEPTH)
         port map (
@@ -251,7 +290,7 @@ begin
             r_valid => wfifo_r_valid, r_ready => wfifo_r_ready, r_data => wfifo_r_data
         );
 
-    -- Input Acts FIFO (Entrada DMA -> Core Ativações)
+    -- Input Act FIFO
     u_fifo_acts : entity work.fifo_sync
         generic map (DATA_W => 32, DEPTH => FIFO_DEPTH)
         port map (
@@ -260,8 +299,9 @@ begin
             r_valid => ififo_r_valid, r_ready => ififo_r_ready, r_data => ififo_r_data
         );
 
-    -- Output FIFO (Saída PPU -> Leitura DMA)
-    ofifo_r_ready <= '1' when (vld_i = '1' and we_i = '0' and reg_addr = 16#18# and s_write_done = '0') else '0';
+    -- Output FIFO
+    -- O sinal ofifo_r_ready (POP) agora vem do processo síncrono principal
+    ofifo_r_ready <= s_read_fifo_pop;
 
     u_fifo_out : entity work.fifo_sync
         generic map (DATA_W => 32, DEPTH => FIFO_DEPTH)
@@ -325,59 +365,13 @@ begin
             );
     end generate;
 
-    -- Conexão da Saída PPU -> Output FIFO
+    -- Output Packing (Assumindo 4 colunas de 8 bits = 32 bits)
+
     ofifo_w_valid <= ppu_valid_vec(0);
-    
-    -- Ajuste de largura: Output Data (32 bits, empacotando 4 bytes)
-    -- Atenção: Se COLS*DATA_W > 32, precisará de lógica extra. Aqui assume 4x8=32.
     ofifo_w_data  <= std_logic_vector(resize(unsigned(core_output_data), 32));
 
     ---------------------------------------------------------------------------------------------------------
-    -- 5. LEITURA DE DADOS (STATUS & OUTPUT)
-    ---------------------------------------------------------------------------------------------------------
     
-    process(reg_addr, r_en_relu, r_load_mode, r_quant_shift, r_quant_zero, 
-            r_quant_mult, wfifo_w_ready, ififo_w_ready, ofifo_r_valid, 
-            ofifo_r_data, r_bias_vec, r_acc_clear, r_acc_dump)
-    begin
-        data_o <= (others => '0');
-        case reg_addr is
-
-            when 16#00# => -- Control
-                data_o(0) <= r_en_relu;
-                data_o(1) <= r_load_mode;
-                data_o(2) <= r_acc_clear;
-                data_o(3) <= r_acc_dump;
-
-            when 16#04# => -- Quant Config
-                data_o(4 downto 0)  <= r_quant_shift;
-                data_o(15 downto 8) <= r_quant_zero;
-
-            when 16#08# => data_o <= r_quant_mult;
-
-            when 16#0C# => -- STATUS
-                data_o(0) <= not ififo_w_ready;
-                data_o(1) <= not wfifo_w_ready;
-                data_o(2) <= not ofifo_r_valid;
-                data_o(3) <= ofifo_r_valid;
-
-            when 16#18# => -- Leitura da FIFO
-                data_o <= ofifo_r_data;
-
-            when 16#20# => data_o <= r_bias_vec(31 downto 0);
-            when 16#24# => data_o <= r_bias_vec(63 downto 32);
-            when 16#28# => data_o <= r_bias_vec(95 downto 64);
-            when 16#2C# => data_o <= r_bias_vec(127 downto 96);
-
-            when others => data_o <= (others => '0');
-
-        end case;
-        
-    end process;
-
-    ---------------------------------------------------------------------------------------------------------
-    
-
 end architecture; -- rtl
 
 -------------------------------------------------------------------------------------------------------------
