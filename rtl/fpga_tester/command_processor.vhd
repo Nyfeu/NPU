@@ -61,7 +61,6 @@ architecture rtl of command_processor is
         IDLE, GET_ADDR, CHECK_OP, GET_DATA, 
         EXEC_WRITE,                                     -- Escreve no barramento
         EXEC_READ,                                      -- Configura endereço para leitura
-        CAPTURE_READ,                                   -- Captura o dado retornado pela NPU
         SEND_BYTE, WAIT_TX_START, WAIT_TX_DONE
     );
 
@@ -146,17 +145,12 @@ begin
                         -- Configura barramento para leitura
                         m_vld <= '1';
                         m_we  <= '0';
-                        -- A NPU deve responder combinacionalmente ou no prox clock.
-                        -- Vamos dar 1 ciclo de espera para garantir estabilidade.
+                        -- Captura imediata ao receber Ready
                         if m_rdy = '1' then  
-                            state <= CAPTURE_READ;
+                            data_reg <= m_rdata;   -- Captura o dado VÁLIDO agora
+                            byte_cnt <= 3;         -- Prepara contador para envio
+                            state    <= SEND_BYTE; -- Vai direto para envio
                         end if;
-
-                    when CAPTURE_READ =>
-                        -- Mantém SEL alto se necessário, ou captura agora
-                        data_reg <= m_rdata; -- Captura o dado da NPU
-                        byte_cnt <= 3;
-                        state    <= SEND_BYTE;
 
                     -- === ENVIO DA RESPOSTA ===
 
