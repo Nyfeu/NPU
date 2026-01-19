@@ -44,25 +44,26 @@ entity systolic_array is
 
         clk         : in  std_logic;                         -- Sinal de clock
         rst_n       : in  std_logic;                         -- Sinal de reset síncrono local (ativo baixo)
-        load_weight : in  std_logic;                         -- Flag de controle para carregar novos pesos
+        
+        -- Controles OS
+
+        clear_acc   : in  std_logic;                         -- Zera o acumulador interno
+        drain_output: in  std_logic;                         -- 1: Desloca dados (Shift Vertical), 0: Calcula
 
         -----------------------------------------------------------------------------------------------------
         -- Entradas (Vetores Empacotados)
         -----------------------------------------------------------------------------------------------------
 
-        -- Weights: Entram pelo TOPO (um peso por coluna): Largura = COLS * 8 bits
+        -- Streams de Entrada
 
         input_weights : in  std_logic_vector((COLS * DATA_W)-1 downto 0);
-        
-        -- Acts: Entram pela ESQUERDA (Uma ativação por linha): Largura = ROWS * 8 bits
-
         input_acts    : in  std_logic_vector((ROWS * DATA_W)-1 downto 0);
 
         -----------------------------------------------------------------------------------------------------
         -- Saídas (Vetores Empacotados)
         -----------------------------------------------------------------------------------------------------
 
-        -- Accs: Saem pelo FUNDO (Um acumulador por coluna). Largura = COLS * 32 bits
+        -- Accs: saída válida apenas durante 'drain'
 
         output_accs   : out std_logic_vector((COLS * ACC_W)-1 downto 0)
 
@@ -134,49 +135,31 @@ begin
 
     -- Borda Superior (Acumuladores): Injeta ZERO no topo (índice 0, col)
     GEN_INPUT_ACCS: for j in 0 to COLS-1 generate
-        acc_wires(get_v_idx(0, j)) <= (others => '0');
+        acc_wires(get_v_idx(0, j)) <= (others => '0'); 
     end generate;
 
     -- Criação da Matriz ------------------------------------------------------------------------------------
 
     GEN_ROWS: for i in 0 to ROWS-1 generate
-
         GEN_COLS: for j in 0 to COLS-1 generate
-            
             pe_inst: entity work.mac_pe
                 port map (
-
-                    -- Sinais de Controle e Sincronização
-
-                    clk         => clk,
-                    rst_n       => rst_n,
-                    load_weight => load_weight,
-                    
-                    -- PESOS (Vertical): Entra do nó atual (i), sai para o de baixo (i+1)
-
-                    weight_in   => weight_wires(get_v_idx(i, j)),
-                    weight_out  => weight_wires(get_v_idx(i+1, j)),
-                    
-                    -- ATIVAÇÕES (Horizontal): Entra do nó atual (j), sai para a direita (j+1)
-
-                    act_in      => act_wires(get_h_idx(i, j)),
-                    act_out     => act_wires(get_h_idx(i, j+1)),
-                    
-                    -- ACUMULADORES (Vertical): Entra do nó atual (i), sai para o de baixo (i+1)
-
-                    acc_in      => acc_wires(get_v_idx(i, j)),
-                    acc_out     => acc_wires(get_v_idx(i+1, j))
-
+                    clk          => clk,
+                    rst_n        => rst_n,
+                    clear_acc    => clear_acc,
+                    drain_output => drain_output,
+                    weight_in    => weight_wires(get_v_idx(i, j)),
+                    weight_out   => weight_wires(get_v_idx(i+1, j)),
+                    act_in       => act_wires(get_h_idx(i, j)),
+                    act_out      => act_wires(get_h_idx(i, j+1)),
+                    acc_in       => acc_wires(get_v_idx(i, j)),
+                    acc_out      => acc_wires(get_v_idx(i+1, j))
                 );
-            
         end generate GEN_COLS;
-
     end generate GEN_ROWS;
-
 
     -- Coleta de Saídas  ------------------------------------------------------------------------------------
 
-    -- Pega o fio da última linha (ROWS) e joga para a porta de saída
     GEN_OUTPUTS: for j in 0 to COLS-1 generate
         output_accs((j+1)*ACC_W-1 downto j*ACC_W) <= std_logic_vector(acc_wires(get_v_idx(ROWS, j)));
     end generate;
