@@ -36,7 +36,11 @@ entity mac_pe is
 
         clk         : in  std_logic;                      -- Sinal de clock
         rst_n       : in  std_logic;                      -- Sinal de reset síncrono local (ativo baixo)
-        load_weight : in  std_logic;                      -- Flag de controle para carregar novo peso
+        
+        -- Controle OS (Output Stationary)
+
+        clear_acc   : in  std_logic;                      -- Zera o acumulador interno
+        drain_output: in  std_logic;                      -- 1: Desloca dados (Shift Vertical), 0: Calcula
 
         -----------------------------------------------------------------------------------------------------
         -- Entradas de Dados
@@ -72,73 +76,62 @@ architecture rtl of mac_pe is
     signal act_reg    : npu_data_t := (others => '0');    -- Registro de ativação
     signal acc_reg    : npu_acc_t  := (others => '0');    -- Registro de acumulador
 
-    -- Sinal intermediário para o produto multiplicativo ----------------------------------------------------
-
-    signal mult_result : signed(2*DATA_WIDTH-1 downto 0); -- Resultado da multiplicação (32 bits assinados)
-
     ---------------------------------------------------------------------------------------------------------
 
 begin 
 
     -- Deslocamento dos dados dos registradores para as saídas ----------------------------------------------
 
-    act_out <= act_reg;                                   -- Saída da ativação
+    act_out    <= act_reg;                                -- Saída da ativação
     weight_out <= weight_reg;                             -- Saída do peso
-    acc_out <= acc_reg;                                   -- Saída do acumulador
+    acc_out    <= acc_reg;                                -- Saída do acumulador
 
-    -- Cálculo do produto multiplicativo --------------------------------------------------------------------
-
-    mult_result <= weight_reg * act_in;
-
-    -- Processo síncrono para atualização dos registradores -------------------------------------------------
+    -- Processo Síncrono ------------------------------------------------------------------------------------
 
     process(clk)
     begin
 
         if rising_edge(clk) then
-        
             if rst_n = '0' then
-
-                -- Reset síncrono: zera todos os registradores
                 weight_reg <= (others => '0');
                 act_reg    <= (others => '0');
                 acc_reg    <= (others => '0');
-
-                -- NOTA: isso estabele um estado inicial conhecido para os registradores
-                -- evitando valores residuais indesejados.
-
             else
 
-                -- Atualização do registrador de peso se load_weight estiver ativo
+                -- 1. Pipeline de Dados (Systolic Flow)
+                -- Os dados de entrada são passados para os registradores de saída
+                -- para serem consumidos pelos vizinhos no próximo ciclo.
 
-                if load_weight = '1' then
+                weight_reg <= weight_in;
+                act_reg    <= act_in;
 
-                    weight_reg <= weight_in;
-                    act_reg    <= (others => '0');
-                    acc_reg    <= (others => '0');
+                -- 2. Lógica do Acumulador (Output Stationary)
+                if clear_acc = '1' then
+
+                    -- Reset do acumulador para nova inferência
+                    acc_reg <= (others => '0');
                 
-                    -- NOTA: ao carregar um novo peso, a ativação devem 
-                    -- permanecer zeradas.
+                elsif drain_output = '1' then
 
-                else 
+                    -- Modo DRAIN: Comporta-se como um shift-register vertical.
+                    -- Pega o dado do PE de cima (acc_in) e passa para baixo.
+                    acc_reg <= acc_in;
 
-                    -- Pipeline Horizontal: Passa o dado atual para o vizinho (atraso de 1 ciclo) -----------
+                    
+                else
 
-                    act_reg <= act_in;
-
-                    -- Pipeline Vertical: Soma + Multiplicação ----------------------------------------------
-
-                    acc_reg <= acc_in + resize(mult_result, ACC_WIDTH);
-
-                    -----------------------------------------------------------------------------------------
-
+                    -- Modo COMPUTAÇÃO: MAC (Multiply-Accumulate)
+                    -- Acumula sobre si mesmo.
+                    -- Usamos weight_in/act_in direto para minimizar latência de captura.
+                    acc_reg <= acc_reg + resize(weight_in * act_in, ACC_WIDTH);
+                    
                 end if;
 
             end if;
-
         end if;
-
     end process;
+
+    ---------------------------------------------------------------------------------------------------------
 
 end architecture; -- rtl
 
