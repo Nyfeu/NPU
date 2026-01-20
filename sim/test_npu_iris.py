@@ -4,9 +4,9 @@
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge
+from cocotb.triggers import RisingEdge, Timer
 import math
-from test_utils import *
+import test_utils 
 
 # Imports ML (sklearn) =========================================================
 
@@ -23,73 +23,86 @@ except ImportError:
     print("⚠️ SKLEARN não instalado.")
 
 # ==============================================================================
-# CONSTANTES E DRIVER
+# CONSTANTES (Atualizadas para NPU v2)
 # ==============================================================================
 
-ADDR_CSR_CTRL   = 0x00
-ADDR_CSR_QUANT  = 0x04
-ADDR_CSR_MULT   = 0x08
-ADDR_CSR_STATUS = 0x0C
-ADDR_FIFO_W     = 0x10
-ADDR_FIFO_ACT   = 0x14
-ADDR_FIFO_OUT   = 0x18
-ADDR_BIAS_BASE  = 0x20 
+REG_CTRL       = 0x00
+REG_QUANT_CFG  = 0x04
+REG_QUANT_MULT = 0x08
+REG_STATUS     = 0x0C
+REG_WRITE_W    = 0x10 
+REG_WRITE_A    = 0x14 
+REG_READ_OUT   = 0x18 
+REG_BIAS_BASE  = 0x20
 
-CTRL_RELU       = 1  # Bit 0
-CTRL_LOAD       = 2  # Bit 1
-CTRL_ACC_CLEAR  = 4  # Bit 2
-CTRL_ACC_DUMP   = 8  # Bit 3
+STATUS_OUT_VALID  = (1 << 3)
+CTRL_ACC_CLEAR    = 0x04
+CTRL_ACC_DUMP     = 0x08
 
 ROWS = 4
 COLS = 4
 
-class MMIO_Driver:
-    def __init__(self, dut):
-        self.dut = dut
-        # Inicializa sinais em '0'
-        self.dut.vld_i.value = 0
-        self.dut.we_i.value = 0
-        self.dut.addr_i.value = 0
-        self.dut.data_i.value = 0
+# ==============================================================================
+# DRIVERS MMIO (Adaptado do test_npu_top.py)
+# ==============================================================================
 
-    async def write(self, addr, data):
-        # 1. Sinaliza a intenção de escrita (Valid)
-        self.dut.vld_i.value = 1
-        self.dut.we_i.value = 1
-        self.dut.addr_i.value = addr
-        self.dut.data_i.value = int(data) & 0xFFFFFFFF
-        
-        # 2. Espera pelo flanco de clock onde o READY da NPU é '1'
-        while True:
-            await RisingEdge(self.dut.clk)
-            if self.dut.rdy_o.value == 1:
-                break
-        
-        # 3. Finaliza a transação
-        self.dut.vld_i.value = 0
-        self.dut.we_i.value = 0
+async def mmio_write(dut, addr, data):
+    dut.addr_i.value = addr
+    dut.data_i.value = int(data) & 0xFFFFFFFF
+    dut.we_i.value   = 1
+    dut.vld_i.value  = 1
+    while True:
+        await RisingEdge(dut.clk)
+        if dut.rdy_o.value == 1:
+            break
+    dut.vld_i.value = 0
+    dut.we_i.value  = 0
+    await RisingEdge(dut.clk) 
+    await RisingEdge(dut.clk)
 
-    async def read(self, addr):
-        # 1. Sinaliza intenção de leitura
-        self.dut.vld_i.value = 1
-        self.dut.we_i.value = 0
-        self.dut.addr_i.value = addr
-        
-        # 2. Espera o READY (dado pronto para ser capturado)
-        while True:
-            await RisingEdge(self.dut.clk)
-            if self.dut.rdy_o.value == 1:
-                # Captura o dado no mesmo ciclo que o Ready está alto
-                val = self.dut.data_o.value
-                break
-        
-        # 3. Finaliza
-        self.dut.vld_i.value = 0
-        try: return int(val)
-        except: return 0
+async def mmio_read(dut, addr):
+    dut.addr_i.value = addr
+    dut.we_i.value   = 0
+    dut.vld_i.value  = 1
+    
+    data = 0
+    while True:
+        await RisingEdge(dut.clk)
+        if dut.rdy_o.value == 1:
+            data = int(dut.data_o.value)
+            break
+            
+    dut.vld_i.value = 0
+    await RisingEdge(dut.clk) 
+    await RisingEdge(dut.clk)
+    return data
+
+def pack_int8(values):
+    packed = 0
+    for i, val in enumerate(values):
+        val_8bit = int(val) & 0xFF
+        packed |= (val_8bit << (i * 8))
+    return packed
+
+def unpack_int8(packed):
+    values = []
+    for i in range(4):
+        raw = (packed >> (i * 8)) & 0xFF
+        if raw & 0x80: raw -= 256
+        values.append(raw)
+    return values
+
+async def reset_dut(dut):
+    """Hard Reset: Garante estado limpo da NPU"""
+    dut.rst_n.value = 0
+    await Timer(20, unit="ns") 
+    await RisingEdge(dut.clk)
+    dut.rst_n.value = 1
+    await RisingEdge(dut.clk)
+    for _ in range(5): await RisingEdge(dut.clk)
 
 # ==============================================================================
-# FUNÇÕES DE QUANTIZAÇÃO
+# PREPARAÇÃO DO MODELO
 # ==============================================================================
 
 def quantize_matrix(matrix, scale):
@@ -99,25 +112,6 @@ def quantize_matrix(matrix, scale):
 def quantize_bias(bias, scale_w, scale_x):
     scale = scale_w * scale_x
     return np.round(bias / scale).astype(int)
-
-def pack_vec(values):
-    packed = 0
-    for i, val in enumerate(values):
-        val = int(val) & 0xFF
-        packed |= (val << (i * 8))
-    return packed
-
-def unpack_vec(packed):
-    res = []
-    for i in range(4):
-        b = (packed >> (i*8)) & 0xFF
-        if b > 127: b -= 256
-        res.append(b)
-    return res
-
-# ==============================================================================
-# PREPARAÇÃO DO MODELO
-# ==============================================================================
 
 def get_iris_model():
     if HAS_SKLEARN:
@@ -163,85 +157,92 @@ def get_iris_model():
 
 @cocotb.test()
 async def test_npu_iris_inference(dut):
-    log_header("TESTE NPU: IRIS (LOG COMPLETO)")
+    test_utils.log_header("TESTE NPU: IRIS (Updated for Systolic Feed)")
     
     cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
-    mmio = MMIO_Driver(dut)
+    await reset_dut(dut)
     
-    dut.rst_n.value = 0
-    await RisingEdge(dut.clk)
-    dut.rst_n.value = 1
-    
-    # 1. Obter Modelo e Parâmetros
+    # Obter Modelo e Parâmetros
     W_int, B_int, X_test, y_true, ppu_mult, ppu_shift = get_iris_model()
 
-    # 2. Configurar NPU
-    # Inicialmente apenas configuração de PPU, sem ativar Tiling ainda
-    await mmio.write(ADDR_CSR_CTRL, 0) 
-    
+    # Configurar NPU
+    # Quantização
     quant_cfg = (0 << 8) | (ppu_shift & 0x1F) 
-    await mmio.write(ADDR_CSR_QUANT, quant_cfg)
-    await mmio.write(ADDR_CSR_MULT, ppu_mult)
+    await mmio_write(dut, REG_QUANT_CFG, quant_cfg)
+    await mmio_write(dut, REG_QUANT_MULT, ppu_mult)
     
     # Carregar Bias
     for i, b in enumerate(B_int):
-        await mmio.write(ADDR_BIAS_BASE + (i*4), b)
+        await mmio_write(dut, REG_BIAS_BASE + (i*4), b)
     
-    log_success(f"Configuração: Mult={ppu_mult}, Shift={ppu_shift}")
+    test_utils.log_success(f"Configuração: Mult={ppu_mult}, Shift={ppu_shift}")
 
-    # 3. Carregar Pesos
-    log_info("Carregando Pesos...")
-    await mmio.write(ADDR_CSR_CTRL, CTRL_LOAD) # Load Mode
-    for r in reversed(range(ROWS)):
-        packed = pack_vec(W_int[r, :])
-        await mmio.write(ADDR_FIFO_W, packed)
-        
-    # Ativar Modo Single-Batch (Clear + Dump) 
-    # Como IRIS tem apenas 4 entradas, cabe tudo em uma passada.
-    # Dizemos ao HW: "Zere o acumulador antes (CLEAR) e solte o resultado depois (DUMP)"
-    ctrl_infer = CTRL_ACC_CLEAR | CTRL_ACC_DUMP
-    await mmio.write(ADDR_CSR_CTRL, ctrl_infer)
-    
-    # 4. Inferência (Log de Tudo)
-    log_info(f"Iniciando Inferência em {len(X_test)} amostras...")
+    # Inferência
+    test_utils.log_info(f"Iniciando Inferência em {len(X_test)} amostras...")
     correct_preds = 0
     total_samples = len(X_test)
-    BATCH_SIZE = 30
     
-    sample_idx = 0 
-    
-    for i in range(0, total_samples, BATCH_SIZE):
-        batch_X = X_test[i : i+BATCH_SIZE]
-        batch_y = y_true[i : i+BATCH_SIZE]
+    for sample_idx, (x, label_true) in enumerate(zip(X_test, y_true)):
         
-        for x in batch_X:
-            await mmio.write(ADDR_FIFO_ACT, pack_vec(x))
+        # Limpar Acumuladores antes de cada amostra
+        await mmio_write(dut, REG_CTRL, CTRL_ACC_CLEAR)
+        await mmio_write(dut, REG_CTRL, 0) # Retorna para Idle
+        
+        # Alimentação Sistólica (Systolic Feed)
+        # Como a NPU agora espera alimentação simultânea de A e B:
+        # Input 'x' (1x4) entra na Linha 0 da matriz A.
+        # Pesos 'W' (4x4) entram na matriz B.
+        for k in range(4):
+            # Input Vector: Mapeado para Row 0 de A
+            # col_A deve ter x[k] na posição 0, zeros nas outras linhas
+            col_A = [x[k], 0, 0, 0]
             
-        for j, label_true in enumerate(batch_y):
-            while True:
-                status = await mmio.read(ADDR_CSR_STATUS)
-                if (status >> 3) & 1: break
+            # Weight Matrix: Mapeada para B
+            # row_B deve ser a linha k de W
+            row_B = W_int[k, :] 
+            
+            await mmio_write(dut, REG_WRITE_A, pack_int8(col_A))
+            await mmio_write(dut, REG_WRITE_W, pack_int8(row_B))
+            
+        # Aguardar Processamento
+        # Tempo fixo para propagação sistólica + PPU
+        for _ in range(60): await RisingEdge(dut.clk)
+        
+        # Dump dos Resultados
+        await mmio_write(dut, REG_CTRL, CTRL_ACC_DUMP)
+        
+        results = []
+        for _ in range(4):
+            tries = 0
+            while (await mmio_read(dut, REG_STATUS) & STATUS_OUT_VALID) == 0:
                 await RisingEdge(dut.clk)
+                tries += 1
+                if tries > 200: break
             
-            val = await mmio.read(ADDR_FIFO_OUT)
-            scores = unpack_vec(val)
-            pred_label = np.argmax(scores[:3])
+            val = await mmio_read(dut, REG_READ_OUT)
+            results.append(unpack_int8(val))
             
-            is_correct = (pred_label == label_true)
-            if is_correct: correct_preds += 1
-                
-            msg = f"Amostra {sample_idx:02d}: Scores={scores[:3]} | Pred={pred_label} | Real={label_true}"
+        await mmio_write(dut, REG_CTRL, 0) # Clear Ctrl
+        
+        # Processar Resultado
+        # O hardware devolve de baixo pra cima (Row 3 -> Row 2 -> Row 1 -> Row 0).
+        # results[0] = Row 3 ... results[3] = Row 0.
+        # Como nosso input estava na Row 0, o resultado válido está em results[3].
+        raw_scores = results[3] 
+        pred_label = np.argmax(raw_scores[:3]) # IRIS tem 3 classes
+        
+        is_correct = (pred_label == label_true)
+        if is_correct: correct_preds += 1
             
-            if not is_correct:
-                log_warning(msg) # Amarelo para destacar o erro
-            else:
-                log_info(msg)    # Azul/Info para acertos
-            
-            sample_idx += 1
+        msg = f"Amostra {sample_idx:02d}: Scores={raw_scores[:3]} | Pred={pred_label} | Real={label_true}"
+        
+        if not is_correct:
+            test_utils.log_warning(msg)
+        else:
+            test_utils.log_info(msg)
 
-    # 5. Resultado
+    # Resultado Final
     acc = (correct_preds / total_samples) * 100.0
-    log_header("RESULTADO FINAL")
-    log_info(f"Acertos: {correct_preds}/{total_samples}")
-    
-    log_success(f"Acurácia da NPU: {acc:.2f}%")
+    test_utils.log_header("RESULTADO FINAL")
+    test_utils.log_info(f"Acertos: {correct_preds}/{total_samples}")
+    test_utils.log_success(f"Acurácia da NPU: {acc:.2f}%")
