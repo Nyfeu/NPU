@@ -105,7 +105,7 @@ architecture rtl of npu_top is
     signal r_quant_shift  : std_logic_vector(4 downto 0) := (others => '0');
     signal r_quant_zero   : std_logic_vector(DATA_W-1 downto 0) := (others => '0');
     signal r_quant_mult   : std_logic_vector(QUANT_W-1 downto 0) := (others => '0');
-    signal r_bias_vec     : std_logic_vector((COLS * ACC_W)-1 downto 0) := (others => '0');
+    signal r_bias_vec     : std_logic_vector((COLS*ACC_W)-1 downto 0) := (others => '0');
     signal r_acc_clear    : std_logic := '0';
     signal r_acc_dump     : std_logic := '0';
 
@@ -114,30 +114,33 @@ architecture rtl of npu_top is
     -- Weight FIFO ---
 
     signal wfifo_w_valid, wfifo_w_ready : std_logic;
-    signal wfifo_r_valid, wfifo_r_ready : std_logic; 
-    signal wfifo_r_data  : std_logic_vector(31 downto 0);
+    signal wfifo_r_valid, wfifo_r_ready : std_logic;
+    signal wfifo_r_data                 : std_logic_vector((COLS*DATA_W)-1 downto 0);
     
     -- Input Act FIFO ---
 
     signal ififo_w_valid, ififo_w_ready : std_logic;
     signal ififo_r_valid, ififo_r_ready : std_logic;
-    signal ififo_r_data  : std_logic_vector(31 downto 0);
+    signal ififo_r_data                 : std_logic_vector((ROWS*DATA_W)-1 downto 0);
 
     -- Output FIFO ---
 
     signal ofifo_w_valid, ofifo_w_ready : std_logic;
     signal ofifo_r_valid, ofifo_r_ready : std_logic;
-    signal ofifo_w_data  : std_logic_vector(31 downto 0);
-    signal ofifo_r_data  : std_logic_vector(31 downto 0);
-    signal s_read_fifo_pop  : std_logic;
+    signal ofifo_w_data, ofifo_r_data   : std_logic_vector(31 downto 0);
+    signal pop_out                      : std_logic;
+
+    -- Sinal de Reset Interno -------------------------------------------------------------------------------
+
+    signal s_soft_rst_n      : std_logic;
 
     -- Sinais CORE / PPU ------------------------------------------------------------------------------------
 
     signal core_valid_in     : std_logic;
-    signal core_accs         : std_logic_vector((COLS * ACC_W)-1 downto 0);
-    signal core_to_ppu_valid : std_logic;
+    signal core_valid_out    : std_logic;
+    signal core_accs         : std_logic_vector((COLS*ACC_W)-1 downto 0);
     signal ppu_valid_vec     : std_logic_vector(0 to COLS-1);
-    signal core_output_data  : std_logic_vector((COLS * DATA_W)-1 downto 0);
+    signal ppu_data_vec      : std_logic_vector((COLS*DATA_W)-1 downto 0);
 
     ---------------------------------------------------------------------------------------------------------
 
@@ -147,105 +150,81 @@ begin
     -- DECODIFICAÇÃO DE ENDEREÇO
     ---------------------------------------------------------------------------------------------------------
 
-    process(addr_i)
-    begin
-        if is_x(addr_i) then
-            reg_addr <= 0;
-        else
-            reg_addr <= to_integer(unsigned(addr_i(7 downto 0)));
-        end if;
-    end process;
+    reg_addr <= to_integer(unsigned(addr_i(7 downto 0)));
+
+    ---------------------------------------------------------------------------------------------------------
+    -- Reset Interno
+    ---------------------------------------------------------------------------------------------------------
+
+    s_soft_rst_n <= rst_n and (not r_acc_clear);
 
     ---------------------------------------------------------------------------------------------------------
     -- PROCESSO MMIO
     ---------------------------------------------------------------------------------------------------------
 
-    process(clk, rst_n)
+    process(clk)
     begin
         if rising_edge(clk) then
             if rst_n = '0' then
-                rdy_o         <= '0';
-                s_ack         <= '0';
-                data_o        <= (others => '0');
-                
-                r_en_relu     <= '0';
-                r_quant_shift <= (others => '0');
-                r_quant_zero  <= (others => '0');
-                r_quant_mult  <= (others => '0');
-                r_bias_vec    <= (others => '0');
-                r_acc_clear   <= '0';
-                r_acc_dump    <= '0';
-                
-                wfifo_w_valid   <= '0';
-                ififo_w_valid   <= '0';
-                s_read_fifo_pop <= '0';
+                rdy_o <= '0';
+                s_ack <= '0';
+                data_o <= (others => '0');
+                wfifo_w_valid <= '0';
+                ififo_w_valid <= '0';
+                pop_out <= '0';
             else
-                -- Pulsos de controle devem durar apenas 1 ciclo (default)
-                wfifo_w_valid   <= '0';
-                ififo_w_valid   <= '0';
-                s_read_fifo_pop <= '0';
+                wfifo_w_valid <= '0';
+                ififo_w_valid <= '0';
+                pop_out <= '0';
 
-                -- Lógica de Handshake
                 if vld_i = '1' then
-                    
-                    -- Mantém rdy_o ALTO enquanto vld_i for alto
                     rdy_o <= '1';
-                    
-                    -- Executa a operação apenas no primeiro ciclo do handshake
                     if s_ack = '0' then
-                        s_ack <= '1'; -- Trava para não repetir
-                        
-                        -- WRITE
+                        s_ack <= '1';
+
                         if we_i = '1' then
                             case reg_addr is
-                                when 16#00# => -- Control
+                                when 16#00# =>
                                     r_en_relu   <= data_i(0);
                                     r_acc_clear <= data_i(2);
                                     r_acc_dump  <= data_i(3);
-                                when 16#04# => -- Quant Config
+                                when 16#04# =>
                                     r_quant_shift <= data_i(4 downto 0);
                                     r_quant_zero  <= data_i(15 downto 8);
-                                when 16#08# => r_quant_mult <= data_i;
-                                when 16#10# => wfifo_w_valid <= '1';
-                                when 16#14# => ififo_w_valid <= '1';
-                                when 16#20# => r_bias_vec(31 downto 0)   <= data_i;
-                                when 16#24# => r_bias_vec(63 downto 32)  <= data_i;
-                                when 16#28# => r_bias_vec(95 downto 64)  <= data_i;
-                                when 16#2C# => r_bias_vec(127 downto 96) <= data_i;
+                                when 16#08# =>
+                                    r_quant_mult <= data_i;
+                                when 16#10# =>
+                                    wfifo_w_valid <= '1';
+                                when 16#14# =>
+                                    ififo_w_valid <= '1';
+                                when 16#20# =>
+                                    r_bias_vec(31 downto 0) <= data_i;
+                                when 16#24# =>
+                                    r_bias_vec(63 downto 32) <= data_i;
+                                when 16#28# =>
+                                    r_bias_vec(95 downto 64) <= data_i;
+                                when 16#2C# =>
+                                    r_bias_vec(127 downto 96) <= data_i;
                                 when others => null;
                             end case;
-                        
-                        -- READ
-                        else 
+                        else
                             case reg_addr is
-                                when 16#00# => 
-                                    data_o(0) <= r_en_relu;
-                                    data_o(2) <= r_acc_clear;
-                                    data_o(3) <= r_acc_dump;
-                                    data_o(31 downto 4) <= (others => '0');
-                                when 16#04# => 
-                                    data_o(4 downto 0)  <= r_quant_shift;
-                                    data_o(15 downto 8) <= r_quant_zero;
-                                    data_o(31 downto 16)<= (others => '0');
-                                    data_o(7 downto 5)  <= (others => '0');
-                                when 16#0C# => -- STATUS
+                                when 16#0C# =>
                                     data_o(0) <= not ififo_w_ready;
                                     data_o(1) <= not wfifo_w_ready;
                                     data_o(2) <= not ofifo_r_valid;
                                     data_o(3) <= ofifo_r_valid;
-                                    data_o(31 downto 4) <= (others => '0');
-                                when 16#18# => -- READ OUTPUT
+                                when 16#18# =>
                                     data_o <= ofifo_r_data;
-                                    s_read_fifo_pop <= '1';
-                                when 16#20# => data_o <= r_bias_vec(31 downto 0);
-                                when others => data_o <= (others => '0');
+                                    pop_out <= '1';
+                                when others =>
+                                    data_o <= (others => '0');
                             end case;
                         end if;
                     end if;
                 else
-                    -- Reset do handshake quando vld_i baixa
-                    s_ack  <= '0';
-                    rdy_o  <= '0';
+                    rdy_o <= '0';
+                    s_ack <= '0';
                 end if;
             end if;
         end if;
@@ -256,79 +235,56 @@ begin
     ---------------------------------------------------------------------------------------------------------
     
     -- Weight FIFO
-    u_fifo_weights : entity work.fifo_sync
-        generic map (DATA_W => 32, DEPTH => FIFO_DEPTH)
-        port map (
-            clk => clk, rst_n => rst_n,
-            w_valid => wfifo_w_valid, w_ready => wfifo_w_ready, w_data => data_i,
-            r_valid => wfifo_r_valid, r_ready => wfifo_r_ready, r_data => wfifo_r_data
-        );
+    u_wfifo : entity work.fifo_sync
+        generic map (DATA_W => COLS*DATA_W, DEPTH => FIFO_DEPTH)
+        port map (clk, s_soft_rst_n, wfifo_w_valid, wfifo_w_ready, data_i, wfifo_r_valid, wfifo_r_ready, wfifo_r_data);
 
     -- Input Act FIFO
-    u_fifo_acts : entity work.fifo_sync
-        generic map (DATA_W => 32, DEPTH => FIFO_DEPTH)
-        port map (
-            clk => clk, rst_n => rst_n,
-            w_valid => ififo_w_valid, w_ready => ififo_w_ready, w_data => data_i,
-            r_valid => ififo_r_valid, r_ready => ififo_r_ready, r_data => ififo_r_data
-        );
+    u_ififo : entity work.fifo_sync
+        generic map (DATA_W => ROWS*DATA_W, DEPTH => FIFO_DEPTH)
+        port map (clk, s_soft_rst_n, ififo_w_valid, ififo_w_ready, data_i, ififo_r_valid, ififo_r_ready, ififo_r_data);
 
     -- Output FIFO
     -- O sinal ofifo_r_ready (POP) agora vem do processo síncrono principal
-    ofifo_r_ready <= s_read_fifo_pop;
-    u_fifo_out : entity work.fifo_sync
+    u_ofifo : entity work.fifo_sync
         generic map (DATA_W => 32, DEPTH => FIFO_DEPTH)
-        port map (
-            clk => clk, rst_n => rst_n,
-            w_valid => ofifo_w_valid, w_ready => ofifo_w_ready, w_data => ofifo_w_data,
-            r_valid => ofifo_r_valid, r_ready => ofifo_r_ready, r_data => ofifo_r_data
-        );
+        port map (clk, s_soft_rst_n, ofifo_w_valid, ofifo_w_ready, ofifo_w_data, ofifo_r_valid, pop_out, ofifo_r_data);
+
 
     ---------------------------------------------------------------------------------------------------------
     -- CONTROLE DE FLUXO 
     ---------------------------------------------------------------------------------------------------------
     
-    process(wfifo_r_valid, ififo_r_valid)
-    begin
-        if (wfifo_r_valid = '1' and ififo_r_valid = '1') then
-            core_valid_in <= '1';
-            wfifo_r_ready <= '1';
-            ififo_r_ready <= '1';
-        else
-            core_valid_in <= '0';
-            wfifo_r_ready <= '0';
-            ififo_r_ready <= '0';
-        end if;
-    end process;
+    core_valid_in <= wfifo_r_valid and ififo_r_valid;
+    wfifo_r_ready <= core_valid_in;
+    ififo_r_ready <= core_valid_in;
 
     ---------------------------------------------------------------------------------------------------------
     -- NPU CORE & PPUs
     ---------------------------------------------------------------------------------------------------------
 
-    u_npu_core : entity work.npu_core
+    u_core : entity work.npu_core
         generic map (ROWS => ROWS, COLS => COLS, DATA_W => DATA_W, ACC_W => ACC_W)
         port map (
             clk           => clk,
-            rst_n         => rst_n,
+            rst_n         => rst_n, 
             acc_clear     => r_acc_clear,
             acc_dump      => r_acc_dump,
             valid_in      => core_valid_in,
             input_weights => wfifo_r_data,
             input_acts    => ififo_r_data,
-            valid_out     => core_to_ppu_valid,
-            output_accs   => core_accs
+            output_accs   => core_accs,
+            valid_out     => core_valid_out
         );
 
     -- PPU Instance Generation ------------------------------------------------------------------------------
 
-    GEN_PPUS: for i in 0 to COLS-1 generate
-    begin
+    GEN_PPU : for i in 0 to COLS-1 generate
         u_ppu : entity work.post_process
-            generic map (ACC_W => ACC_W, DATA_W => DATA_W, QUANT_W => QUANT_W)
             port map (
                 clk         => clk,
                 rst_n       => rst_n,
-                valid_in    => core_to_ppu_valid,
+                valid_in    => core_valid_out,
                 acc_in      => core_accs((i+1)*ACC_W-1 downto i*ACC_W),
                 bias_in     => r_bias_vec((i+1)*ACC_W-1 downto i*ACC_W),
                 quant_mult  => r_quant_mult,
@@ -336,14 +292,14 @@ begin
                 zero_point  => r_quant_zero,
                 en_relu     => r_en_relu,
                 valid_out   => ppu_valid_vec(i),
-                data_out    => core_output_data((i+1)*DATA_W-1 downto i*DATA_W)
+                data_out    => ppu_data_vec((i+1)*DATA_W-1 downto i*DATA_W)
             );
     end generate;
 
     -- Output Packing (Assumindo 4 colunas de 8 bits = 32 bits)
 
     ofifo_w_valid <= ppu_valid_vec(0);
-    ofifo_w_data  <= std_logic_vector(resize(unsigned(core_output_data), 32));
+    ofifo_w_data  <= std_logic_vector(resize(unsigned(ppu_data_vec), 32));
 
     ---------------------------------------------------------------------------------------------------------
     

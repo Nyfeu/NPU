@@ -25,12 +25,17 @@ use ieee.std_logic_1164.ALL;
 
 entity npu_fpga_top is
 
+    generic (
+        CLK_FREQ    : integer := 100000000; 
+        BAUD_RATE   : integer := 921_600
+    );
+
     port ( 
-        CLK_i       : in  std_logic;
-        Reset_i     : in  std_logic; -- Botão da Nexys (Ativo Alto)
-        UART_RX_i   : in  std_logic;
-        UART_TX_o   : out std_logic;
-        LEDS_o      : out std_logic_vector(15 downto 0)
+        clk         : in  std_logic;
+        rst         : in  std_logic; -- Botão da Nexys (Ativo Alto)
+        uart_rx     : in  std_logic;
+        uart_tx     : out std_logic;
+        leds        : out std_logic_vector(3 downto 0)
     );
 
 end npu_fpga_top;
@@ -41,55 +46,89 @@ end npu_fpga_top;
 
 architecture rtl of npu_fpga_top is
 
-    -- Reset Sincronizado e Invertido para NPU
-    signal rst_n       : std_logic;
+    -- Sinal de RESET Interno (Ativo Baixo)
+    signal s_rst_n    : std_logic;
 
-    -- UART Signals
-    signal rx_data, tx_data : std_logic_vector(7 downto 0);
-    signal rx_dv, tx_start, tx_busy : std_logic;
+    -- Sinais UART (Interface com Command Processor)
+    signal s_rx_valid : std_logic;
+    signal s_rx_data  : std_logic_vector(7 downto 0);
+    signal s_tx_ready : std_logic;
+    signal s_tx_valid : std_logic;
+    signal s_tx_data  : std_logic_vector(7 downto 0);
 
-    -- Bus Signals (Processador -> NPU)
-    signal bus_vld, bus_we, bus_rdy : std_logic;
-    signal bus_addr, bus_wdata, bus_rdata : std_logic_vector(31 downto 0);
+    -- Sinal auxiliar para conversão Busy -> Ready
+    signal s_uart_tx_busy : std_logic;
+
+    -- Sinais NPU
+    signal s_npu_vld, s_npu_rdy, s_npu_we : std_logic;
+    signal s_npu_addr : std_logic_vector(31 downto 0);
+    signal s_npu_wdata, s_npu_rdata : std_logic_vector(31 downto 0);
+
+    -- Extensores de pulso para o LED (para o olho humano ver piscar)
+    signal rx_blink_cnt : integer range 0 to 10000000 := 0;
+    signal rx_led_reg   : std_logic := '0';
 
 begin
 
-    rst_n <= not Reset_i; -- Inverte para NPU
+    s_rst_n <= not rst;
+    s_tx_ready <= not s_uart_tx_busy;
 
-    -- Debug: LEDs mostram os 16 bits baixos do barramento de dados (escrita ou leitura)
-    -- Isso ajuda a ver se a NPU está recebendo/enviando algo
-    LEDS_o <= bus_wdata(15 downto 0) when bus_we = '1' else bus_rdata(15 downto 0);
+    -- =========================================================
+    -- DEBUG LEDS
+    -- =========================================================
 
-    -- UART Controller (Camada Física)
-    UART_Phys : entity work.uart_controller
-        generic map (CLK_FREQ => 100_000_000, BAUD_RATE => 921_600)
+    -- LED 0: Status do Reset (Aceso = Funcionando / Apagado = Em Reset)
+    leds(0) <= s_rst_n; 
+    
+    -- LED 1: Pisca quando recebe Byte da UART (RX Valid)
+    process(clk) begin
+        if rising_edge(clk) then
+            if s_rx_valid = '1' then
+                rx_blink_cnt <= 10000000; -- Acende por ~100ms
+                rx_led_reg <= '1';
+            elsif rx_blink_cnt > 0 then
+                rx_blink_cnt <= rx_blink_cnt - 1;
+            else
+                rx_led_reg <= '0';
+            end if;
+        end if;
+    end process;
+    leds(1) <= rx_led_reg;
+
+    -- LED 2: NPU Valid (Acende quando o Command Processor fala com a NPU)
+    leds(2) <= s_npu_vld;
+
+    -- LED 3: NPU Ready (Acende quando a NPU responde)
+    leds(3) <= s_npu_rdy;
+
+    -- =========================================================
+    -- INSTÂNCIAS (Mantidas iguais)
+    -- =========================================================
+    
+    u_uart : entity work.uart_controller
+        generic map ( CLK_FREQ => CLK_FREQ, BAUD_RATE => BAUD_RATE )
         port map (
-            CLK => CLK_i, RST => Reset_i,
-            UART_RX => UART_RX_i, UART_TX => UART_TX_o,
-            TX_DATA => tx_data, TX_START => tx_start, TX_BUSY => tx_busy,
-            RX_DATA => rx_data, RX_DV => rx_dv
+            clk => clk, rst => rst, -- Reset ativo alto do seu controller
+            uart_rx => uart_rx, uart_tx => uart_tx,
+            tx_data => s_tx_data, tx_start => s_tx_valid, tx_busy => s_uart_tx_busy,
+            rx_data => s_rx_data, rx_dv => s_rx_valid
         );
 
-    -- Command Processor (Mestre do Barramento)
-    CMD_Proc : entity work.command_processor
+    u_cmd_proc : entity work.command_processor
         port map (
-            CLK => CLK_i, RST => rst_n, -- Usa reset negado internamente para consistência
-            RX_DATA => rx_data, RX_DV => rx_dv,
-            TX_DATA => tx_data, TX_START => tx_start, TX_BUSY => tx_busy,
-            -- Interface Bus
-            M_VLD => bus_vld, M_WE => bus_we, M_RDY => bus_rdy,
-            M_ADDR => bus_addr, M_WDATA => bus_wdata, M_RDATA => bus_rdata
+            clk => clk, rst_n => s_rst_n,
+            uart_rx_valid => s_rx_valid, uart_rx_data => s_rx_data,
+            uart_tx_ready => s_tx_ready, uart_tx_valid => s_tx_valid, uart_tx_data => s_tx_data,
+            npu_rdy_i => s_npu_rdy, npu_data_i => s_npu_rdata,
+            npu_vld_o => s_npu_vld, npu_we_o => s_npu_we, npu_addr_o => s_npu_addr, npu_data_o => s_npu_wdata
         );
 
-    -- NPU (Device)
-    NPU_Inst : entity work.npu_top
-        generic map (
-            ROWS => 4, COLS => 4, ACC_W => 32, DATA_W => 8, QUANT_W => 32, FIFO_DEPTH => 64
-        )
+    u_npu : entity work.npu_top
+        generic map ( ROWS => 4, COLS => 4, FIFO_DEPTH => 64 )
         port map (
-            clk => CLK_i, rst_n => rst_n,
-            vld_i => bus_vld, we_i => bus_we, rdy_o => bus_rdy,
-            addr_i => bus_addr, data_i => bus_wdata, data_o => bus_rdata
+            clk => clk, rst_n => s_rst_n,
+            vld_i => s_npu_vld, rdy_o => s_npu_rdy, we_i => s_npu_we,
+            addr_i => s_npu_addr, data_i => s_npu_wdata, data_o => s_npu_rdata
         );
 
 end architecture; -- rtl
