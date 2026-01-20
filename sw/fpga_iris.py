@@ -1,8 +1,6 @@
 # ==============================================================================
 # File: fpga_iris.py
 # ==============================================================================
-# Descrição: Driver HIL para Iris Dataset 
-# ==============================================================================
 
 import serial
 import time
@@ -52,6 +50,10 @@ def setup_logger():
     ch.setFormatter(ColoredFormatter())
     logger.addHandler(ch)
     
+    # Cria pasta build se não existir
+    if not os.path.exists("build"):
+        os.makedirs("build")
+        
     log_file = os.path.join("build", "iris_test_report.log")
     fh = logging.FileHandler(log_file, mode='w', encoding='utf-8')
     fh.setFormatter(logging.Formatter('%(asctime)s | %(levelname)-8s | %(message)s', datefmt='%H:%M:%S'))
@@ -73,22 +75,25 @@ except ImportError:
 # CONFIGURAÇÃO DE HARDWARE
 # ==============================================================================
 
+# Ajuste a porta COM conforme seu sistema (COMx no Windows, /dev/ttyUSBx no Linux)
 SERIAL_PORT = 'COM6'  
 BAUD_RATE   = 921600
 
+# Mapa de Registradores (NPU v2)
 ADDR_CSR_CTRL   = 0x00
 ADDR_CSR_QUANT  = 0x04
 ADDR_CSR_MULT   = 0x08
 ADDR_CSR_STATUS = 0x0C
-ADDR_FIFO_W     = 0x10
-ADDR_FIFO_ACT   = 0x14
-ADDR_FIFO_OUT   = 0x18
+ADDR_WRITE_W    = 0x10 # Antigo ADDR_FIFO_W
+ADDR_WRITE_A    = 0x14 # Antigo ADDR_FIFO_ACT
+ADDR_READ_OUT   = 0x18 # Antigo ADDR_FIFO_OUT
 ADDR_BIAS_BASE  = 0x20 
 
+# Bits de Controle
 CTRL_RELU       = 1  
-CTRL_LOAD       = 2  
 CTRL_ACC_CLEAR  = 4  
 CTRL_ACC_DUMP   = 8  
+STATUS_VALID    = 8  # Bit 3 do Status indica Output Valid
 
 ROWS = 4
 COLS = 4
@@ -109,10 +114,12 @@ class UART_Driver:
             sys.exit(1)
 
     def write(self, addr, data):
+        # Protocolo simples: 0x01 (Write) | ADDR (4B) | DATA (4B)
         packet = struct.pack('>BII', 0x01, addr, int(data) & 0xFFFFFFFF) 
         self.ser.write(packet)
 
     def read(self, addr):
+        # Protocolo simples: 0x02 (Read) | ADDR (4B)
         packet = struct.pack('>BI', 0x02, addr)
         self.ser.write(packet)
         resp = self.ser.read(4)
@@ -135,6 +142,7 @@ def quantize_bias(bias, scale_w, scale_x):
     return np.round(bias / scale).astype(int)
 
 def pack_vec(values):
+    """Empacota 4 bytes em um inteiro de 32 bits (Little Endian para o bus)"""
     packed = 0
     for i, val in enumerate(values):
         val = int(val) & 0xFF
@@ -142,6 +150,7 @@ def pack_vec(values):
     return packed
 
 def unpack_vec(packed):
+    """Desempacota inteiro de 32 bits em 4 bytes (Signed Int8)"""
     res = []
     for i in range(4):
         b = (packed >> (i*8)) & 0xFF
@@ -158,20 +167,20 @@ def get_iris_model():
     iris = datasets.load_iris()
     X = iris.data; y = iris.target
     
+    # Split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train)
     X_test = scaler.transform(X_test)
     
+    # Treino
     clf = LogisticRegression(random_state=0, C=1.0)
     clf.fit(X_train, y_train)
     
     # Adaptação para NPU 4x4
-    # Iris tem 3 classes -> Precisamos de 3 neurônios (colunas)
-    # A NPU tem 4 colunas. A quarta coluna será preenchida com zeros (padding).
+    # Pesos (Features x Classes) -> (4, 3) -> Pad para (4, 4)
+    # A NPU espera W[Row][Col]. Transpomos clf.coef_ (3,4) -> (4,3)
     weights_pad = np.zeros((4,4))
-    
-    # clf.coef_ é (3, 4). Transpomos para (4, 3) para mapear Features nas Linhas e Classes nas Colunas.
     weights_core = clf.coef_.T 
     weights_pad[:, :3] = weights_core 
     
@@ -188,14 +197,14 @@ def get_iris_model():
     B_int = quantize_bias(bias_pad, scale_w, scale_x)
     X_test_int = quantize_matrix(X_test, scale_x)
     
-    # Calibração PPU (Estimativa conservadora)
+    # Calibração PPU
     max_acc_val = (127 * 127 * ROWS) + np.max(np.abs(B_int))
     ppu_mult = 120 
     target_ratio = (max_acc_val * ppu_mult) / 127.0
     ppu_shift = int(math.ceil(math.log2(target_ratio))) if target_ratio > 1 else 0
     if ppu_shift > 31: ppu_shift = 31
     
-    log.info(f"Parâmetros de Quantização: Mult={ppu_mult}, Shift={ppu_shift}")
+    log.info(f"Parâmetros: Mult={ppu_mult}, Shift={ppu_shift}, ScaleW={scale_w:.4f}, ScaleX={scale_x:.4f}")
     return W_int, B_int, X_test_int, y_test, ppu_mult, ppu_shift
 
 # ==============================================================================
@@ -203,36 +212,26 @@ def get_iris_model():
 # ==============================================================================
 
 def main():
-    log.info(f"{Colors.BOLD}>>> Iniciando Suite de Testes HIL - IRIS{Colors.RESET}")
+    log.info(f"{Colors.BOLD}>>> Iniciando Suite de Testes HIL - IRIS (Systolic Mode){Colors.RESET}")
     driver = UART_Driver(SERIAL_PORT, BAUD_RATE)
     
-    # Preparação
+    # 1. Preparação
     data = get_iris_model()
     if data is None: return
     W_int, B_int, X_test, y_true, ppu_mult, ppu_shift = data
 
-    # Configuração NPU
-    log.info("Configurando NPU (PPU, Bias, Pesos)...")
+    # 2. Configuração Estática da NPU (PPU, Bias)
+    log.info("Configurando NPU (PPU, Bias)...")
     driver.write(ADDR_CSR_CTRL, 0)
     driver.write(ADDR_CSR_QUANT, (0 << 8) | (ppu_shift & 0x1F))
     driver.write(ADDR_CSR_MULT, ppu_mult)
 
-    # Envia Bias
+    # Carregar Bias (permanece constante para todo o batch de inferência)
     for i, b in enumerate(B_int):
         driver.write(ADDR_BIAS_BASE + (i*4), b)
 
-    # Envia Pesos
-    driver.write(ADDR_CSR_CTRL, CTRL_LOAD) 
-    for r in reversed(range(ROWS)):
-        packed = pack_vec(W_int[r, :])
-        driver.write(ADDR_FIFO_W, packed)
-
-    # Inferência
-    log.info("Iniciando Inferência...")
-    
-    # Configura modo de execução (Clear antes, Dump depois)
-    # Como Iris cabe em um único passo, podemos deixar fixo.
-    driver.write(ADDR_CSR_CTRL, CTRL_ACC_CLEAR | CTRL_ACC_DUMP)
+    # 3. Inferência Loop
+    log.info(f"Iniciando Inferência em {len(X_test)} amostras...")
     
     correct_count = 0
     total_time = 0
@@ -246,23 +245,59 @@ def main():
     for idx, (x_vec, y_real) in enumerate(zip(X_test, y_true)):
         start_time = time.time()
         
-        # Envia Entrada
-        driver.write(ADDR_FIFO_ACT, pack_vec(x_vec))
+        # A. Limpar Acumuladores (Pulso de Clear)
+        driver.write(ADDR_CSR_CTRL, CTRL_ACC_CLEAR)
+        driver.write(ADDR_CSR_CTRL, 0) # Volta para IDLE
         
-        # Polling
-        while True:
-            status = driver.read(ADDR_CSR_STATUS)
-            if (status >> 3) & 1: break
+        # B. Alimentação Sistólica (Input + Pesos)
+        # Iteramos sobre a dimensão comum K (Features = 4)
+        for k in range(4):
+            # Input Vector: x_vec[k] mapeado para Linha 0 da matriz A.
+            # O restante da coluna é 0.
+            val_input = x_vec[k]
+            vec_a = [val_input, 0, 0, 0]
+            
+            # Weight Matrix: Linha k da matriz de pesos
+            # W_int[k, :] contem os pesos das 4 colunas (classes) para a feature k
+            vec_w = W_int[k, :]
+            
+            # Envia via UART
+            # Nota: A ordem exata (A depois W ou W depois A) depende do buffer,
+            # mas geralmente não importa desde que ambos cheguem antes do clock de processamento.
+            driver.write(ADDR_WRITE_A, pack_vec(vec_a))
+            driver.write(ADDR_WRITE_W, pack_vec(vec_w))
+            
+            # Pequeno delay se necessário para garantir que o HW não perca pacotes
+            # Com baud rate 921600, a transmissão é o gargalo, então o HW deve estar sobrando.
         
-        # Lê Resultado
-        res_packed = driver.read(ADDR_FIFO_OUT)
-        scores = unpack_vec(res_packed)
+        # C. Dump e Leitura
+        driver.write(ADDR_CSR_CTRL, CTRL_ACC_DUMP)
+        
+        # A NPU cospe 4 linhas de resultados (FIFO output).
+        # Precisamos ler 4 vezes.
+        # A Linha 0 (onde colocamos o input) é a última a sair (ordem Row 3->0 normalmente).
+        raw_results = []
+        for _ in range(4):
+            # Polling do bit Valid no Status
+            while True:
+                status = driver.read(ADDR_CSR_STATUS)
+                if status & STATUS_VALID: break
+                # timeout implícito no driver.read
+            
+            val = driver.read(ADDR_READ_OUT)
+            raw_results.append(unpack_vec(val))
+        
+        driver.write(ADDR_CSR_CTRL, 0) # Limpa CTRL
         
         # Analisa Tempo
         elapsed = time.time() - start_time
         total_time += elapsed
         
-        # Classificação (Ignora o 4° valor que é padding)
+        # O resultado válido está na posição correspondente à linha onde injetamos o input.
+        # Injetamos em Row 0 -> Resultado em results[3] (supondo ordem inversa de dump)
+        scores = raw_results[3]
+        
+        # Classificação (Argmax dos 3 primeiros scores)
         pred = np.argmax(scores[:3])
         is_correct = (pred == y_real)
         
