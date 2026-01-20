@@ -9,276 +9,205 @@ import random
 from test_utils import *
 
 # ==============================================================================
-# Configurações 
+# File: NPU/sim/core/test_npu_core.py
+# ==============================================================================
+# Descrição: Testbench para o NPU Core (Output Stationary).
+#            Verifica a integração completa: Buffers de Skew + Systolic Array.
 # ==============================================================================
 
+import cocotb
+from cocotb.clock import Clock
+from cocotb.triggers import RisingEdge, Timer
+import random
+from test_utils import *
+
+# ==============================================================================
+# CONFIGURAÇÕES
+# ==============================================================================
 ROWS = 4
 COLS = 4
 DATA_WIDTH = 8
 ACC_WIDTH = 32
 
-MIN_VAL = -128
-MAX_VAL = 127
-
 # ==============================================================================
-# CLASSES E FUNÇÕES AUXILIARES (REUTILIZÁVEIS)
+# HELPERS
 # ==============================================================================
 
-def pack_vec(values):
-    """ Empacota lista de inteiros para sinal lógico. """
+def pack_vector(values, width):
+    """Empacota lista de inteiros em um sinal VHDL."""
     packed = 0
-    mask = (1 << DATA_WIDTH) - 1
+    mask = (1 << width) - 1
     for i, val in enumerate(values):
-        val_masked = val & mask
-        packed |= (val_masked << (i * DATA_WIDTH))
+        val = int(val) & mask
+        packed |= (val << (i * width))
     return packed
 
-def unpack_vec(packed_val):
-    """ Desempacota sinal lógico para lista de inteiros (com sinal). """
-    try: val_int = int(packed_val)
-    except ValueError: return [0] * COLS
+def unpack_vector(packed_val, width, count):
+    """Desempacota sinal VHDL para lista de inteiros."""
     unpacked = []
-    mask = (1 << ACC_WIDTH) - 1
-    for i in range(COLS):
-        raw = (val_int >> (i * ACC_WIDTH)) & mask
-        if raw & (1 << (ACC_WIDTH - 1)): raw -= (1 << ACC_WIDTH)
+    try:
+        val_int = packed_val.to_signed()
+    except:
+        val_int = 0
+    mask = (1 << width) - 1
+    for i in range(count):
+        raw = (val_int >> (i * width)) & mask
+        if raw & (1 << (width - 1)): raw -= (1 << width)
         unpacked.append(raw)
     return unpacked
 
-class ReferenceModel:
-    """ Modelo Dourado (Golden Model) """
-    @staticmethod
-    def compute(W, X):
-        res = []
-        for c in range(COLS):
-            acc = 0
-            for r in range(ROWS):
-                acc += X[r] * W[r][c]
-            res.append(acc)
-        return res
-
-class Scoreboard:
-    """ Gerencia a comparação de resultados """
-    def __init__(self, log_prefix="[SB]"):
-        self.queue = []
-        self.errors = 0
-        self.prefix = log_prefix
-
-    def add_expected(self, vec):
-        self.queue.append(vec)
-
-    def check(self, received):
-        if not self.queue:
-            # Ignora saídas espúrias iniciais se houver (pipeline flush)
-            # Mas se for dado real inesperado, marca erro
-            if received != [0]*COLS: 
-                log_error(f"{self.prefix} Erro Crítico: Dado recebido sem expectativa -> {received}")
-                self.errors += 1
-            return
-
-        expected = self.queue.pop(0)
-        if received != expected:
-            self.errors += 1
-            log_error(f"{self.prefix} FALHA DE DADOS")
-            log_error(f"   Esperado: {expected}")
-            log_error(f"   Recebido: {received}")
-
-# ==============================================================================
-# SETUP HELPERS (CORRIGIDO)
-# ==============================================================================
-
-async def setup_npu(dut):
-    """ Inicializa Clock e Reset """
-    cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+async def reset_dut(dut):
+    """Reset e inicialização de sinais."""
     dut.rst_n.value = 0
+    dut.acc_clear.value = 0
+    dut.acc_dump.value = 0
     dut.valid_in.value = 0
-    dut.load_weight.value = 0
     dut.input_weights.value = 0
     dut.input_acts.value = 0
-    
-    # --- CORREÇÃO: Configurar Modo Pass-Through ---
-    # acc_clear=1: Limpa acumuladores a cada nova entrada (não soma com o passado)
-    # acc_dump=1: Libera o resultado imediatamente (não espera fim do bloco)
-    dut.acc_clear.value = 1
-    dut.acc_dump.value  = 1
-    # ---------------------------------------------
-
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
     dut.rst_n.value = 1
-    await RisingEdge(dut.clk)
-
-async def load_weights(dut, weights_matrix):
-    """ Carrega uma matriz de pesos na NPU """
-    dut.load_weight.value = 1
-    # Carrega de baixo para cima (Linha 3 -> Linha 0)
-    for r in range(ROWS-1, -1, -1):
-        dut.input_weights.value = pack_vec(weights_matrix[r])
-        await RisingEdge(dut.clk)
-    dut.load_weight.value = 0
-    await RisingEdge(dut.clk)
-
-async def monitor_output(dut, scoreboard):
-    """ Processo contínuo que captura saídas válidas """
-    while True:
-        await RisingEdge(dut.clk)
-        await ReadOnly()
-        if dut.valid_out.value == 1:
-            raw = dut.output_accs.value
-            vec = unpack_vec(raw)
-            scoreboard.check(vec)
 
 # ==============================================================================
-# TESTES INDIVIDUAIS
+# TESTE 1: INTEGRAÇÃO BÁSICA (Matriz Identidade)
 # ==============================================================================
-
 @cocotb.test()
-async def test_01_basic_sanity(dut):
+async def test_core_identity(dut):
+    log_header("TESTE CORE: IDENTIDADE 4x4")
+    cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+    await reset_dut(dut)
+
+    # 1. Definir Matrizes (A=I, B=I)
+    # K=4 (Profundidade)
+    A = [[1 if i==j else 0 for j in range(4)] for i in range(4)]
+    B = [[1 if i==j else 0 for j in range(4)] for i in range(4)]
     
-    # TESTE 1: Sanity Check (Integridade Básica)
+    # 2. Iniciar Processamento
+    # Limpa acumuladores
+    dut.acc_clear.value = 1
+    await RisingEdge(dut.clk)
+    dut.acc_clear.value = 0
     
-    log_header("TESTE 1: BASIC SANITY (Identidade)")
-    await setup_npu(dut)
-    sb = Scoreboard("[Sanity]")
-
-    # 1. Matriz Identidade
-    W = [[1 if r == c else 0 for c in range(COLS)] for r in range(ROWS)]
-    await load_weights(dut, W)
-
-    # 2. Inicia Monitor
-    monitor = cocotb.start_soon(monitor_output(dut, sb))
-
-    # 3. Vetores de Teste Simples
-    test_vectors = [
-        [10, 20, 30, 40],
-        [1, 1, 1, 1],
-        [0, 0, 0, 0]
-    ]
-
-    log_info("Injetando vetores básicos...")
-    for vec in test_vectors:
-        # Golden Model
-        expected = ReferenceModel.compute(W, vec)
-        sb.add_expected(expected)
-
-        # Drive
+    log_info(">>> Enviando Dados (Ciclo a Ciclo)...")
+    
+    # Loop pela dimensão K (Profundidade da multiplicação)
+    # A NPU espera receber A[:, k] e B[k, :] simultaneamente
+    K_DIM = 4
+    for k in range(K_DIM):
         dut.valid_in.value = 1
-        dut.input_acts.value = pack_vec(vec)
-        await RisingEdge(dut.clk)
-    
-    dut.valid_in.value = 0
-
-    # 4. Wait & Check
-    for _ in range(50): 
-        if not sb.queue: break
-        await RisingEdge(dut.clk)
-    
-    monitor.cancel()
-    
-    if sb.errors == 0 and not sb.queue:
-        log_success("Teste de Sanidade: APROVADO.")
-    else:
-        log_error(f"Teste de Sanidade: FALHOU com {sb.errors} erros. Fila restante: {len(sb.queue)}")
-        assert False
-
-@cocotb.test()
-async def test_02_corner_cases(dut):
-    
-    # TESTE 2: Corner Cases (Limites Numéricos)
-    
-    log_header("TESTE 2: CORNER CASES")
-    await setup_npu(dut)
-    sb = Scoreboard("[Corner]")
-
-    # 1. Pesos Mistos
-    W = [[random.randint(-10, 10) for _ in range(COLS)] for _ in range(ROWS)]
-    await load_weights(dut, W)
-    monitor = cocotb.start_soon(monitor_output(dut, sb))
-
-    # 2. Casos Extremos
-    corner_vectors = [
-        [MAX_VAL] * ROWS,    
-        [MIN_VAL] * ROWS,    
-        [0] * ROWS,          
-        [1, -1, 1, -1],      
-        [0, MAX_VAL, 0, MIN_VAL]
-    ]
-
-    log_info(f"Testando {len(corner_vectors)} vetores de canto...")
-
-    for vec in corner_vectors:
-        sb.add_expected(ReferenceModel.compute(W, vec))
         
-        dut.valid_in.value = 1
-        dut.input_acts.value = pack_vec(vec)
-        await RisingEdge(dut.clk)
-
-    dut.valid_in.value = 0
-    
-    # Wait & Check
-    for _ in range(50): 
-        if not sb.queue: break
-        await RisingEdge(dut.clk)
-    
-    monitor.cancel()
-    
-    if sb.errors == 0:
-        log_success("Teste de Corner Cases: APROVADO.")
-    else:
-        assert False, f"Falha nos Casos de Canto ({sb.errors} erros)"
-
-@cocotb.test()
-async def test_03_stress_random(dut):
-    
-    # TESTE 3: Stress Test (Fuzzing com Backpressure)
-    
-    log_header("TESTE 3: STRESS RANDOM & BACKPRESSURE")
-    await setup_npu(dut)
-    sb = Scoreboard("[Stress]")
-
-    # 1. Pesos Totalmente Aleatórios
-    W = [[random.randint(MIN_VAL, MAX_VAL) for _ in range(COLS)] for _ in range(ROWS)]
-    await load_weights(dut, W)
-    monitor = cocotb.start_soon(monitor_output(dut, sb))
-
-    NUM_VECS = 200
-    log_info(f"Iniciando fuzzing com {NUM_VECS} vetores e pausas aleatórias...")
-
-    for i in range(NUM_VECS):
-        # Gera entrada
-        vec = [random.randint(MIN_VAL, MAX_VAL) for _ in range(ROWS)]
+        # Fatia de Ativações: Coluna k da matriz A
+        col_A = [A[row][k] for row in range(ROWS)]
         
-        # Registra expectativa
-        sb.add_expected(ReferenceModel.compute(W, vec))
-
-        # Envia dado
-        dut.valid_in.value = 1
-        dut.input_acts.value = pack_vec(vec)
+        # Fatia de Pesos: Linha k da matriz B
+        row_B = [B[k][col] for col in range(COLS)]
+        
+        dut.input_acts.value = pack_vector(col_A, DATA_WIDTH)
+        dut.input_weights.value = pack_vector(row_B, DATA_WIDTH)
+        
         await RisingEdge(dut.clk)
 
-        # INJEÇÃO DE CAOS: Pausa aleatória (Backpressure simulado)
-        if random.random() < 0.3: # 30% de chance de pausa
-            dut.valid_in.value = 0
-            dut.input_acts.value = 0
+    # Desliga entrada e espera o Pipeline processar
+    dut.valid_in.value = 0
+    dut.input_acts.value = 0
+    dut.input_weights.value = 0
+    
+    # Latência: Skew Entrada (Max 4) + Array (4) + Margem
+    # Como não temos sinal de "Done", esperamos um tempo seguro
+    log_info(">>> Aguardando propagação no Array...")
+    for _ in range(15):
+        await RisingEdge(dut.clk)
+        
+    # 3. Drenagem (Readout)
+    log_info(">>> Drenando Resultados...")
+    dut.acc_dump.value = 1
+    
+    captured_rows = []
+    
+    # Leitura Bottom-Up (Igual ao Systolic Array)
+    for i in range(ROWS):
+        await Timer(1, unit="ns")
+        packed = dut.output_accs.value
+        vec = unpack_vector(packed, ACC_WIDTH, COLS)
+        captured_rows.append(vec)
+        await RisingEdge(dut.clk)
+        
+    dut.acc_dump.value = 0
+    
+    log_info(f"Saída Capturada: {captured_rows}")
+
+    # 4. Validação
+    # Sai Row 3, depois Row 2...
+    expected_rows = [
+        [0, 0, 0, 1], # Row 3
+        [0, 0, 1, 0], # Row 2
+        [0, 1, 0, 0], # Row 1
+        [1, 0, 0, 0]  # Row 0
+    ]
+    
+    for i in range(4):
+        if captured_rows[i] != expected_rows[i]:
+            log_error(f"Erro Row {3-i}. Esperado {expected_rows[i]}, Lido {captured_rows[i]}")
+            assert False
             
-            pause_duration = random.randint(1, 4)
-            for _ in range(pause_duration):
-                await RisingEdge(dut.clk)
+    log_success("Sucesso! Core processou Identidade corretamente com Buffers de Skew.")
 
+# ==============================================================================
+# TESTE 2: FUZZING (Matrizes Retangulares)
+# ==============================================================================
+@cocotb.test()
+async def test_core_fuzzing(dut):
+    log_header("TESTE CORE: FUZZING (4x8 * 8x4)")
+    cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+    await reset_dut(dut)
+    
+    # 1. Dados Aleatórios
+    K_DIM = 8 # Profundidade maior para testar fluxo contínuo
+    A = [[random.randint(-5, 5) for _ in range(K_DIM)] for _ in range(ROWS)]
+    B = [[random.randint(-5, 5) for _ in range(COLS)] for _ in range(K_DIM)]
+    
+    # Golden Model
+    C_ref = [[0]*COLS for _ in range(ROWS)]
+    for r in range(ROWS):
+        for c in range(COLS):
+            C_ref[r][c] = sum(A[r][k] * B[k][c] for k in range(K_DIM))
+            
+    # 2. Execução
+    dut.acc_clear.value = 1
+    await RisingEdge(dut.clk)
+    dut.acc_clear.value = 0
+    
+    for k in range(K_DIM):
+        dut.valid_in.value = 1
+        col_A = [A[r][k] for r in range(ROWS)]
+        row_B = [B[k][c] for c in range(COLS)]
+        
+        dut.input_acts.value = pack_vector(col_A, DATA_WIDTH)
+        dut.input_weights.value = pack_vector(row_B, DATA_WIDTH)
+        await RisingEdge(dut.clk)
+        
     dut.valid_in.value = 0
     
-    # Wait for drain
-    timeout = 0
-    while sb.queue and timeout < 1000:
+    # Espera cálculo terminar (K + Latency)
+    for _ in range(K_DIM + ROWS + COLS + 5):
         await RisingEdge(dut.clk)
-        timeout += 1
-
-    monitor.cancel()
-
-    if sb.errors == 0 and not sb.queue:
-        log_success(f"Teste de Stress ({NUM_VECS} vecs): APROVADO.")
-    elif sb.queue:
-        log_error(f"Timeout: {len(sb.queue)} vetores não saíram da NPU.")
-        assert False
-    else:
-        assert False, f"Falha no Stress Test ({sb.errors} erros)"
+        
+    # 3. Readout
+    dut.acc_dump.value = 1
+    hw_rows = []
+    for _ in range(ROWS):
+        await Timer(1, unit="ns")
+        packed = dut.output_accs.value
+        hw_rows.append(unpack_vector(packed, ACC_WIDTH, COLS))
+        await RisingEdge(dut.clk)
+    
+    # 4. Validar
+    for i in range(ROWS):
+        hw_val = hw_rows[i]
+        ref_val = C_ref[(ROWS-1)-i] # Mapeamento Bottom-Up
+        
+        if hw_val != ref_val:
+            log_error(f"Erro Row {(ROWS-1)-i}. Ref: {ref_val}, HW: {hw_val}")
+            assert False
+            
+    log_success(f"Fuzzing OK! Multiplicação 4x{K_DIM}x4 passou.")
