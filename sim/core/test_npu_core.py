@@ -4,19 +4,6 @@
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, ReadOnly
-import random
-from test_utils import *
-
-# ==============================================================================
-# File: NPU/sim/core/test_npu_core.py
-# ==============================================================================
-# Descrição: Testbench para o NPU Core (Output Stationary).
-#            Verifica a integração completa: Buffers de Skew + Systolic Array.
-# ==============================================================================
-
-import cocotb
-from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
 import random
 from test_utils import *
