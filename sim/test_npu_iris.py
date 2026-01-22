@@ -8,8 +8,7 @@ from cocotb.triggers import RisingEdge, Timer
 import math
 import test_utils 
 
-# Imports ML (sklearn) =========================================================
-
+# Imports ML
 try:
     import numpy as np
     from sklearn import datasets
@@ -17,33 +16,30 @@ try:
     from sklearn.model_selection import train_test_split
     from sklearn.preprocessing import StandardScaler
     HAS_SKLEARN = True
-
 except ImportError:
     HAS_SKLEARN = False
     print("⚠️ SKLEARN não instalado.")
 
 # ==============================================================================
-# CONSTANTES (Atualizadas para NPU v2)
+# CONSTANTES & MAPA DE REGISTRADORES
 # ==============================================================================
+REG_STATUS     = 0x00
+REG_CMD        = 0x04
+REG_CONFIG     = 0x08
+REG_WRITE_W    = 0x10
+REG_WRITE_A    = 0x14
+REG_READ_OUT   = 0x18
+REG_QUANT_CFG  = 0x40
+REG_QUANT_MULT = 0x44
+REG_BIAS_BASE  = 0x80
 
-REG_CTRL       = 0x00
-REG_QUANT_CFG  = 0x04
-REG_QUANT_MULT = 0x08
-REG_STATUS     = 0x0C
-REG_WRITE_W    = 0x10 
-REG_WRITE_A    = 0x14 
-REG_READ_OUT   = 0x18 
-REG_BIAS_BASE  = 0x20
-
-STATUS_OUT_VALID  = (1 << 3)
-CTRL_ACC_CLEAR    = 0x04
-CTRL_ACC_DUMP     = 0x08
-
-ROWS = 4
-COLS = 4
+STATUS_DONE      = (1 << 1)
+STATUS_OUT_VALID = (1 << 3)
+CMD_RST_PTRS     = 0x01
+CMD_START        = 0x02
 
 # ==============================================================================
-# DRIVERS MMIO (Adaptado do test_npu_top.py)
+# HELPERS DE HARDWARE
 # ==============================================================================
 
 async def mmio_write(dut, addr, data):
@@ -53,28 +49,23 @@ async def mmio_write(dut, addr, data):
     dut.vld_i.value  = 1
     while True:
         await RisingEdge(dut.clk)
-        if dut.rdy_o.value == 1:
-            break
+        if dut.rdy_o.value == 1: break
     dut.vld_i.value = 0
     dut.we_i.value  = 0
     await RisingEdge(dut.clk) 
-    await RisingEdge(dut.clk)
 
 async def mmio_read(dut, addr):
     dut.addr_i.value = addr
     dut.we_i.value   = 0
     dut.vld_i.value  = 1
-    
     data = 0
     while True:
         await RisingEdge(dut.clk)
         if dut.rdy_o.value == 1:
             data = int(dut.data_o.value)
             break
-            
     dut.vld_i.value = 0
     await RisingEdge(dut.clk) 
-    await RisingEdge(dut.clk)
     return data
 
 def pack_int8(values):
@@ -93,25 +84,40 @@ def unpack_int8(packed):
     return values
 
 async def reset_dut(dut):
-    """Hard Reset: Garante estado limpo da NPU"""
     dut.rst_n.value = 0
     await Timer(20, unit="ns") 
     await RisingEdge(dut.clk)
     dut.rst_n.value = 1
     await RisingEdge(dut.clk)
-    for _ in range(5): await RisingEdge(dut.clk)
 
 # ==============================================================================
-# PREPARAÇÃO DO MODELO
+# MODELAGEM DE SOFTWARE
 # ==============================================================================
 
-def quantize_matrix(matrix, scale):
-    q = np.round(matrix / scale).astype(int)
-    return np.clip(q, -128, 127)
+def model_ppu(acc, bias, mult, shift, zero=0):
+    val = acc + bias
+    val = val * mult
+    if shift > 0:
+        round_bit = 1 << (shift - 1)
+        val = (val + round_bit) >> shift
+    val = val + zero
+    if val > 127: return 127
+    if val < -128: return -128
+    return int(val)
 
-def quantize_bias(bias, scale_w, scale_x):
-    scale = scale_w * scale_x
-    return np.round(bias / scale).astype(int)
+def compute_expected_scores(x_vec, W_mat, B_vec, mult, shift):
+    scores = []
+    for col in range(4):
+        acc = 0
+        for k in range(4):
+            acc += x_vec[k] * W_mat[k][col]
+        final_val = model_ppu(acc, B_vec[col], mult, shift)
+        scores.append(final_val)
+    return scores
+
+# ==============================================================================
+# PREPARAÇÃO ML
+# ==============================================================================
 
 def get_iris_model():
     if HAS_SKLEARN:
@@ -132,117 +138,123 @@ def get_iris_model():
         
         max_w = np.max(np.abs(weights_pad))
         max_x = np.max(np.abs(X_test))
-        scale_w = max_w / 127.0
-        scale_x = max_x / 127.0
+        scale_w = 127.0 / max_w if max_w > 0 else 1.0
+        scale_x = 127.0 / max_x if max_x > 0 else 1.0
         
-        W_int = quantize_matrix(weights_pad, scale_w)
-        B_int = quantize_bias(bias_pad, scale_w, scale_x)
-        X_test_int = quantize_matrix(X_test, scale_x)
+        W_int = np.round(weights_pad * scale_w).astype(int)
+        W_int = np.clip(W_int, -128, 127)
+        B_int = np.round(bias_pad * scale_w * scale_x).astype(int)
+        X_test_int = np.round(X_test * scale_x).astype(int)
+        X_test_int = np.clip(X_test_int, -128, 127)
         
-        # Calibração Automática
-        max_acc_val = (127 * 127 * ROWS) + np.max(np.abs(B_int))
-        ppu_mult = 100
-        target_ratio = (max_acc_val * ppu_mult) / 127.0
-        ppu_shift = int(math.ceil(math.log2(target_ratio)))
+        max_possible_acc = (127 * 127 * 4) + np.max(np.abs(B_int))
+        ppu_mult = 1
+        ppu_shift = int(math.ceil(math.log2(max_possible_acc / 127.0)))
         if ppu_shift < 0: ppu_shift = 0
         
-        print(f"CALIBRAÇÃO: Max Acc={max_acc_val} -> Mult={ppu_mult}, Shift={ppu_shift}")
         return W_int, B_int, X_test_int, y_test, ppu_mult, ppu_shift
-    else:
-        return [[0]*4]*4, [0]*4, [[0]*4], [0], 1, 0
+    return None
 
 # ==============================================================================
-# TESTE PRINCIPAL
+# TESTE
 # ==============================================================================
 
 @cocotb.test()
-async def test_npu_iris_inference(dut):
-    test_utils.log_header("TESTE NPU: IRIS (Updated for Systolic Feed)")
-    
+async def test_npu_iris_inference_autonomous(dut):
+    test_utils.log_header("TESTE IRIS: MODO ROBUSTO (Reset por Amostra)")
     cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
-    await reset_dut(dut)
     
-    # Obter Modelo e Parâmetros
+    if not HAS_SKLEARN: 
+        test_utils.log_error("SKLearn não encontrado. Pulando teste.")
+        return
+
     W_int, B_int, X_test, y_true, ppu_mult, ppu_shift = get_iris_model()
-
-    # Configurar NPU
-    # Quantização
-    quant_cfg = (0 << 8) | (ppu_shift & 0x1F) 
-    await mmio_write(dut, REG_QUANT_CFG, quant_cfg)
-    await mmio_write(dut, REG_QUANT_MULT, ppu_mult)
     
-    # Carregar Bias
-    for i, b in enumerate(B_int):
-        await mmio_write(dut, REG_BIAS_BASE + (i*4), b)
+    # Setup Inicial de Log
+    test_utils.log_info(f"Configuração Carregada: Mult={ppu_mult}, Shift={ppu_shift}")
+    test_utils.log_info(f"Iniciando inferência de {len(X_test)} amostras...")
     
-    test_utils.log_success(f"Configuração: Mult={ppu_mult}, Shift={ppu_shift}")
-
-    # Inferência
-    test_utils.log_info(f"Iniciando Inferência em {len(X_test)} amostras...")
     correct_preds = 0
+    hw_sw_matches = 0
+    K_DIM = 4 
     total_samples = len(X_test)
     
-    for sample_idx, (x, label_true) in enumerate(zip(X_test, y_true)):
+    # -------------------------------------------------------------------------
+    # LOOP PRINCIPAL
+    # -------------------------------------------------------------------------
+    for idx, (x_vec, label_true) in enumerate(zip(X_test, y_true)):
         
-        # Limpar Acumuladores antes de cada amostra
-        await mmio_write(dut, REG_CTRL, CTRL_ACC_CLEAR)
-        await mmio_write(dut, REG_CTRL, 0) # Retorna para Idle
+        # 1. HARD RESET (A Cura para Dados Fantasmas)
+        # Resetamos o HW a cada amostra para garantir que o FIFO esteja vazio.
+        await reset_dut(dut)
+
+        # 2. RECONFIGURAÇÃO (Obrigatória após Reset)
+        await mmio_write(dut, REG_QUANT_CFG, (0 << 8) | (ppu_shift & 0x1F))
+        await mmio_write(dut, REG_QUANT_MULT, ppu_mult)
+        for i, b in enumerate(B_int):
+            await mmio_write(dut, REG_BIAS_BASE + (i*4), b)
         
-        # Alimentação Sistólica (Systolic Feed)
-        # Como a NPU agora espera alimentação simultânea de A e B:
-        # Input 'x' (1x4) entra na Linha 0 da matriz A.
-        # Pesos 'W' (4x4) entram na matriz B.
-        for k in range(4):
-            # Input Vector: Mapeado para Row 0 de A
-            # col_A deve ter x[k] na posição 0, zeros nas outras linhas
-            col_A = [x[k], 0, 0, 0]
-            
-            # Weight Matrix: Mapeada para B
-            # row_B deve ser a linha k de W
-            row_B = W_int[k, :] 
-            
+        # 3. Referência SW
+        expected_scores = compute_expected_scores(x_vec, W_int, B_int, ppu_mult, ppu_shift)
+        
+        # 4. Carga HW
+        await mmio_write(dut, REG_CMD, CMD_RST_PTRS)
+        for k in range(K_DIM):
+            col_A = [x_vec[k], 0, 0, 0] 
+            row_B = W_int[k, :]         
             await mmio_write(dut, REG_WRITE_A, pack_int8(col_A))
             await mmio_write(dut, REG_WRITE_W, pack_int8(row_B))
             
-        # Aguardar Processamento
-        # Tempo fixo para propagação sistólica + PPU
-        for _ in range(60): await RisingEdge(dut.clk)
+        # 5. Execução
+        await mmio_write(dut, REG_CONFIG, K_DIM)
+        await mmio_write(dut, REG_CMD, CMD_START)
         
-        # Dump dos Resultados
-        await mmio_write(dut, REG_CTRL, CTRL_ACC_DUMP)
-        
+        for _ in range(2000):
+            if (await mmio_read(dut, REG_STATUS) & STATUS_DONE): break
+            await RisingEdge(dut.clk)
+            
+        # 6. Leitura
         results = []
         for _ in range(4):
-            tries = 0
             while (await mmio_read(dut, REG_STATUS) & STATUS_OUT_VALID) == 0:
                 await RisingEdge(dut.clk)
-                tries += 1
-                if tries > 200: break
-            
             val = await mmio_read(dut, REG_READ_OUT)
             results.append(unpack_int8(val))
             
-        await mmio_write(dut, REG_CTRL, 0) # Clear Ctrl
+        results.reverse()
+        hw_scores = results[0] 
         
-        # Processar Resultado
-        # O hardware devolve de baixo pra cima (Row 3 -> Row 2 -> Row 1 -> Row 0).
-        # results[0] = Row 3 ... results[3] = Row 0.
-        # Como nosso input estava na Row 0, o resultado válido está em results[3].
-        raw_scores = results[3] 
-        pred_label = np.argmax(raw_scores[:3]) # IRIS tem 3 classes
+        # 7. Análise
+        diff = [abs(h - s) for h, s in zip(hw_scores, expected_scores)]
+        is_hw_valid = max(diff) <= 2
+        hw_pred = np.argmax(hw_scores[:3])
+        is_pred_correct = (hw_pred == label_true)
         
-        is_correct = (pred_label == label_true)
-        if is_correct: correct_preds += 1
-            
-        msg = f"Amostra {sample_idx:02d}: Scores={raw_scores[:3]} | Pred={pred_label} | Real={label_true}"
+        if is_hw_valid: hw_sw_matches += 1
+        if is_pred_correct: correct_preds += 1
         
-        if not is_correct:
-            test_utils.log_warning(msg)
-        else:
-            test_utils.log_info(msg)
+        # Logs
+        if idx > 0 and idx % (total_samples // 5) == 0:
+            test_utils.log_info(f"Progresso: {idx}/{total_samples} amostras processadas...")
 
-    # Resultado Final
-    acc = (correct_preds / total_samples) * 100.0
-    test_utils.log_header("RESULTADO FINAL")
-    test_utils.log_info(f"Acertos: {correct_preds}/{total_samples}")
-    test_utils.log_success(f"Acurácia da NPU: {acc:.2f}%")
+        if not is_hw_valid:
+            test_utils.log_error(f"[HW FAIL] Amostra {idx} | Ref: {expected_scores} | HW: {hw_scores} | Diff: {diff}")
+        elif not is_pred_correct:
+            test_utils.log_warning(f"[MODEL MISS] Amostra {idx} | Label Real: {label_true} | Predito: {hw_pred}")
+
+    acc_model = (correct_preds / total_samples) * 100.0
+    hw_reliability = (hw_sw_matches / total_samples) * 100.0
+    
+    test_utils.log_header(f"RESULTADO FINAL: {acc_model:.2f}% de Acurácia")
+    
+    if hw_reliability < 100.0:
+        test_utils.log_error(f"Fidelidade do Hardware: {hw_reliability:.2f}% (Houve divergências numéricas!)")
+        assert False, "Falha na verificação numérica do Hardware."
+    else:
+        test_utils.log_info("Fidelidade do Hardware: 100%")
+
+    if acc_model < 90.0:
+        test_utils.log_warning(f"Acurácia do modelo ({acc_model:.2f}%) abaixo da meta de 90%.")
+        assert False, "Critério de aceitação de ML não atingido."
+    
+    test_utils.log_success("Teste Iris Concluído com Sucesso!")

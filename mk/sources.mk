@@ -5,6 +5,7 @@ VHDL_SRCS += $(PKG_DIR)/npu_pkg.vhd
 
 # Common & Core
 VHDL_SRCS += $(RTL_DIR)/common/fifo_sync.vhd
+VHDL_SRCS += $(RTL_DIR)/common/ram_dual.vhd
 VHDL_SRCS += $(RTL_DIR)/core/mac_pe.vhd
 VHDL_SRCS += $(RTL_DIR)/core/systolic_array.vhd
 VHDL_SRCS += $(RTL_DIR)/core/input_buffer.vhd

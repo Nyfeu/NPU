@@ -6,43 +6,43 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
 import math
-import os
-import urllib.request
-import numpy as np 
-import test_utils
+import test_utils 
 
-# Tenta importar sklearn para treinar um modelo real
+# Imports ML
 try:
+    import numpy as np
+    from sklearn import datasets
     from sklearn.linear_model import LogisticRegression
-    from sklearn.preprocessing import StandardScaler
+    from sklearn.model_selection import train_test_split
+    from sklearn.preprocessing import MinMaxScaler
     HAS_SKLEARN = True
 except ImportError:
     HAS_SKLEARN = False
+    print("⚠️ SKLEARN não instalado.")
 
 # ==============================================================================
-# CONSTANTES & REGISTRADORES
+# CONSTANTES & MAPA DE REGISTRADORES
 # ==============================================================================
+REG_STATUS     = 0x00
+REG_CMD        = 0x04
+REG_CONFIG     = 0x08
+REG_WRITE_W    = 0x10
+REG_WRITE_A    = 0x14
+REG_READ_OUT   = 0x18
+REG_QUANT_CFG  = 0x40
+REG_QUANT_MULT = 0x44
+REG_BIAS_BASE  = 0x80
 
-REG_CTRL       = 0x00
-REG_QUANT_CFG  = 0x04
-REG_QUANT_MULT = 0x08
-REG_STATUS     = 0x0C
-REG_WRITE_W    = 0x10 
-REG_WRITE_A    = 0x14 
-REG_READ_OUT   = 0x18 
-REG_BIAS_BASE  = 0x20
+STATUS_DONE      = (1 << 1)
+STATUS_OUT_VALID = (1 << 3)
+CMD_RST_PTRS     = 0x01
+CMD_START        = 0x02
 
-STATUS_OUT_VALID  = (1 << 3)
-CTRL_ACC_CLEAR    = 0x04
-CTRL_ACC_DUMP     = 0x08
-
-ROWS = 4
-COLS = 4
-NUM_LABELS = 10
-INPUT_SIZE = 784 # 28x28
+NUM_TEST_SAMPLES = 50   
+INPUT_DIM        = 784  # 28x28 pixels
 
 # ==============================================================================
-# DRIVERS MMIO
+# HELPERS DE HARDWARE
 # ==============================================================================
 
 async def mmio_write(dut, addr, data):
@@ -52,12 +52,10 @@ async def mmio_write(dut, addr, data):
     dut.vld_i.value  = 1
     while True:
         await RisingEdge(dut.clk)
-        if dut.rdy_o.value == 1:
-            break
+        if dut.rdy_o.value == 1: break
     dut.vld_i.value = 0
     dut.we_i.value  = 0
     await RisingEdge(dut.clk) 
-    await RisingEdge(dut.clk)
 
 async def mmio_read(dut, addr):
     dut.addr_i.value = addr
@@ -71,7 +69,6 @@ async def mmio_read(dut, addr):
             break
     dut.vld_i.value = 0
     await RisingEdge(dut.clk) 
-    await RisingEdge(dut.clk)
     return data
 
 def pack_int8(values):
@@ -95,140 +92,106 @@ async def reset_dut(dut):
     await RisingEdge(dut.clk)
     dut.rst_n.value = 1
     await RisingEdge(dut.clk)
-    for _ in range(5): await RisingEdge(dut.clk)
 
 # ==============================================================================
-# DATASET & MODELO
+# MODELAGEM DE SOFTWARE (PPU)
 # ==============================================================================
 
-def load_mnist_data():
-    """Baixa e carrega MNIST (usando npz local se existir)"""
-    if not os.path.exists("mnist.npz"):
-        url = "https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz"
-        test_utils.log_info(f"Baixando MNIST de {url}...")
-        urllib.request.urlretrieve(url, "mnist.npz")
-    
-    with np.load("mnist.npz", allow_pickle=True) as f:
-        x_train, y_train = f['x_train'], f['y_train']
-        x_test, y_test = f['x_test'], f['y_test']
-    
-    # Flatten (28x28 -> 784)
-    x_train = x_train.reshape(-1, 784).astype(np.float32)
-    x_test = x_test.reshape(-1, 784).astype(np.float32)
-    
-    return x_train, y_train, x_test, y_test
+def model_ppu(acc, bias, mult, shift, zero=0):
+    val = acc + bias
+    val = val * mult
+    if shift > 0:
+        round_bit = 1 << (shift - 1)
+        val = (val + round_bit) >> shift
+    val = val + zero
+    if val > 127: return 127
+    if val < -128: return -128
+    return int(val)
 
-def train_and_quantize_model():
-    """
-    Treina uma Regressão Logística no MNIST (se sklearn instalado) 
-    ou gera pesos aleatórios (fallback).
-    Retorna pesos quantizados e parâmetros.
-    """
-    x_train, y_train, x_test, y_test = load_mnist_data()
-    
-    # Obter Pesos (Float)
-    if HAS_SKLEARN:
-        test_utils.log_info("Treinando modelo LogisticRegression rápido (1k amostras)...")
-        
-        # Subsample para ser rápido no teste
-        mask = np.random.choice(len(x_train), 1000, replace=False)
-        X_small = x_train[mask]
-        y_small = y_train[mask]
-        
-        # StandardScaler ajuda na convergência
-        scaler = StandardScaler()
-        X_small = scaler.fit_transform(X_small)
-        # Precisamos da referência de escala para o X de teste depois
-        
-        clf = LogisticRegression(solver='lbfgs', max_iter=200)
-        clf.fit(X_small, y_small)
-        
-        # Sklearn retorna shape (n_classes, n_features) -> (10, 784)
-        # NPU quer (Input, Output) -> (784, 10)
-        weights_float = clf.coef_.T
-        bias_float = clf.intercept_
-        
-        # Para teste, usamos o scaler nos dados de teste também
-        x_test_norm = scaler.transform(x_test[:50]) # Pega 50 pra teste
-        y_test_sub  = y_test[:50]
-        
-    else:
-        test_utils.log_warning("SKLEARN não encontrado. Usando pesos aleatórios (Acurácia será ~10%).")
-        weights_float = np.random.uniform(-0.5, 0.5, (784, 10))
-        bias_float    = np.random.uniform(-0.1, 0.1, (10,))
-        x_test_norm   = (x_test[:50] / 255.0) * 2 - 1 # Normalização simples
-        y_test_sub    = y_test[:50]
+def compute_expected_scores(x_vec, W_mat, B_vec, mult, shift):
+    scores = []
+    for col in range(4):
+        acc = 0
+        for k in range(len(x_vec)):
+            acc += x_vec[k] * W_mat[k][col]
+        final_val = model_ppu(acc, B_vec[col], mult, shift)
+        scores.append(final_val)
+    return scores
 
-    # Quantização (Float -> Int8)
-    # Define escalas baseadas no range dinâmico dos pesos e entradas
-    max_w = np.max(np.abs(weights_float))
-    max_x = np.max(np.abs(x_test_norm))
+# ==============================================================================
+# PREPARAÇÃO ML (ALTA PERFORMANCE)
+# ==============================================================================
+
+def get_mnist_model():
+    if not HAS_SKLEARN: return None
+
+    test_utils.log_info("Carregando MNIST Dataset...")
+    try:
+        mnist = datasets.fetch_openml('mnist_784', version=1, cache=True, as_frame=False)
+    except Exception as e:
+        test_utils.log_error(f"Erro ao baixar MNIST: {e}")
+        return None
+
+    X_raw = mnist.data
+    y_raw = mnist.target.astype(int)
+
+    # 1. Filtro: Classes 0, 1, 2, 3
+    mask = y_raw < 4
+    X_filt = X_raw[mask]
+    y_filt = y_raw[mask]
+
+    # 2. Split 
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_filt, y_filt, train_size=10000, test_size=NUM_TEST_SAMPLES, random_state=42, stratify=y_filt
+    )
+
+    # 3. Escalonamento ALTO CONTRASTE (-1 a 1)
+    # Isso força o input a usar todo o range do int8 (-128 a 127)
+    # Preto vira -128, Branco vira 127. Muito melhor para a NPU "ver" o dígito.
+    scaler = MinMaxScaler(feature_range=(-1, 1))
+    X_train = scaler.fit_transform(X_train)
+    X_test  = scaler.transform(X_test)
+
+    test_utils.log_info(f"Treinando Modelo (10k amostras, alto contraste)...")
+    # C=1.0 (Menor regularização) permite pesos maiores, facilitando quantização
+    clf = LogisticRegression(random_state=42, C=1.0, solver='lbfgs', max_iter=2000)
+    clf.fit(X_train, y_train)
+
+    # 4. Quantização
+    weights_pad = np.zeros((INPUT_DIM, 4))
+    weights_pad[:, :4] = clf.coef_.T
+    bias_pad = np.zeros(4)
+    bias_pad[:4] = clf.intercept_
+
+    # Escala para int8
+    max_w = np.max(np.abs(weights_pad))
+    max_x = np.max(np.abs(X_test)) # Deve ser 1.0 agora
+
+    scale_w = 127.0 / max_w if max_w > 0 else 1.0
+    scale_x = 127.0 / max_x if max_x > 0 else 1.0
+
+    W_int = np.round(weights_pad * scale_w).astype(int)
+    W_int = np.clip(W_int, -128, 127)
     
-    # Evita divisão por zero
-    if max_w == 0: max_w = 1.0
-    if max_x == 0: max_x = 1.0
+    B_int = np.round(bias_pad * scale_w * scale_x).astype(int)
     
-    scale_w = max_w / 127.0
-    scale_x = max_x / 127.0
+    X_test_int = np.round(X_test * scale_x).astype(int)
+    X_test_int = np.clip(X_test_int, -128, 127)
+
+    # 5. CALIBRAÇÃO PPU
+    test_utils.log_info("Calibrando PPU...")
+    raw_acc = np.dot(X_test_int, W_int) + B_int
+    max_acc_abs = np.max(np.abs(raw_acc))
+    if max_acc_abs == 0: max_acc_abs = 1
     
-    # Quantiza
-    W_int = np.clip(np.round(weights_float / scale_w), -128, 127).astype(int)
-    B_int = np.clip(np.round(bias_float / (scale_w * scale_x)), -128, 127).astype(int)
-    X_int = np.clip(np.round(x_test_norm / scale_x), -128, 127).astype(int)
-    
-    # Calcular parâmetros da PPU (Post-Processing Unit)
-    # O acumulador interno vai crescer bastante. Precisamos trazer de volta pra 8 bits.
-    # Aprox: Acc_max ~= 127 * 127 * 784 (pior caso teórico)
-    # Queremos mapear o range útil de volta para [-128, 127]
-    
-    # Heurística: Vamos observar a magnitude típica da saída simulada em float
-    raw_output = np.dot(x_test_norm, weights_float) + bias_float
-    max_out = np.max(np.abs(raw_output))
-    if max_out == 0: max_out = 1.0
-    
-    # A relação real é: Out_int = Out_float / (scale_w * scale_x)
-    # PPU faz: (Acc * mult) >> shift
-    # Queremos que (Acc * mult >> shift) ~= Out_float / scale_total
-    
-    # Simplificação robusta para teste:
-    # Vamos calibrar o shift para que o maior valor do dataset de teste caiba em ~100 (dentro de 127)
-    # Acc_int_max estimativo
-    sim_acc = np.dot(X_int, W_int) + B_int
-    max_acc_abs = np.max(np.abs(sim_acc))
-    
-    # Queremos reduzir max_acc_abs para ~100
-    target = 100.0
-    ratio = max_acc_abs / target
-    
-    # Encontrar mult/shift tal que (mult / 2^shift) ~= 1/ratio
-    # Vamos fixar mult=100 e achar o shift
-    # 100 / 2^shift = 100 / max_acc_abs -> 2^shift = max_acc_abs
-    if max_acc_abs < 1: max_acc_abs = 1
-    ppu_shift = int(math.ceil(math.log2(max_acc_abs / target * 1.5))) # 1.5 margem seg
-    if ppu_shift < 0: ppu_shift = 0
-    ppu_mult = 1 # Usando shift puro geralmente é mais seguro pra evitar overflow na multiplicação intermediária se acc for gigante
-    
-    # Refinando com mult para precisão
-    # scale_factor = 1 / ratio
-    # mult * 2^-shift = scale_factor
-    # mult = scale_factor * 2^shift
-    scale_factor = target / max_acc_abs
-    ppu_shift = 16 # Fixa shift num valor alto para ter precisão no mult
+    # Target output range +/- 100
+    target_output = 100.0
+    ppu_shift = 16 
+    scale_factor = target_output / max_acc_abs
     ppu_mult = int(round(scale_factor * (1 << ppu_shift)))
-    
-    # Clamp mult to 16-bit unsigned (assumindo que HW suporta)
-    # Se o HW suportar apenas mult pequeno, ajuste aqui.
-    # No test_npu_top vimos mult até 255 ok? Vamos limitar a 8 bits se for o caso.
-    while ppu_mult > 255:
-        ppu_mult >>= 1
-        ppu_shift -= 1
-        
     if ppu_mult < 1: ppu_mult = 1
-    if ppu_shift < 0: ppu_shift = 0
     
-    test_utils.log_info(f"Calibration: MaxAcc={max_acc_abs} -> Mult={ppu_mult}, Shift={ppu_shift}")
-    
-    return W_int, B_int, X_int, y_test_sub, ppu_mult, ppu_shift
+    return W_int, B_int, X_test_int, y_test, ppu_mult, ppu_shift
 
 # ==============================================================================
 # TESTE PRINCIPAL
@@ -236,101 +199,111 @@ def train_and_quantize_model():
 
 @cocotb.test()
 async def test_npu_mnist_inference(dut):
-    test_utils.log_header("TESTE NPU: MNIST (Trained Model Check)")
-    
+    test_utils.log_header("TESTE MNIST")
     cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+    
+    if not HAS_SKLEARN: 
+        test_utils.log_error("Bibliotecas ML ausentes.")
+        return
+
+    # Preparação
+    data_pack = get_mnist_model()
+    if data_pack is None: return
+    W_int, B_int, X_test, y_true, ppu_mult, ppu_shift = data_pack
+
+    # Inicialização HW
     await reset_dut(dut)
-    
-    # Preparar Modelo e Dados
-    W_int, B_int, X_int, y_true, ppu_mult, ppu_shift = train_and_quantize_model()
-    
-    NUM_SAMPLES = 5 # Testar 5 amostras
-    
-    # Configurar NPU
-    q_cfg = (0 << 8) | (ppu_shift & 0x1F)
-    await mmio_write(dut, REG_QUANT_CFG, q_cfg)
+    test_utils.log_info(f"Configuração: {INPUT_DIM} Inputs")
+    test_utils.log_info(f"CALIBRAÇÃO: [Mult={ppu_mult} | Shift={ppu_shift}]")
+    test_utils.log_info(f"Iniciando simulação de {len(X_test)} imagens...")
+
+    # Config Global
+    await mmio_write(dut, REG_QUANT_CFG, (0 << 8) | (ppu_shift & 0x1F))
     await mmio_write(dut, REG_QUANT_MULT, ppu_mult)
+    for i, b in enumerate(B_int):
+        await mmio_write(dut, REG_BIAS_BASE + (i*4), b)
+
+    correct_preds = 0
+    hw_sw_matches = 0
+    K_DIM = INPUT_DIM
+
+    # Loop de Inferência
+    for idx, (x_vec, label_true) in enumerate(zip(X_test, y_true)):
+        
+        # 1. HARD RESET
+        await reset_dut(dut)
+        
+        # Reconfiguração
+        await mmio_write(dut, REG_QUANT_CFG, (0 << 8) | (ppu_shift & 0x1F))
+        await mmio_write(dut, REG_QUANT_MULT, ppu_mult)
+        for i, b in enumerate(B_int):
+            await mmio_write(dut, REG_BIAS_BASE + (i*4), b)
+
+        # 2. Referência SW
+        expected_scores = compute_expected_scores(x_vec, W_int, B_int, ppu_mult, ppu_shift)
+
+        # 3. Carga HW
+        await mmio_write(dut, REG_CMD, CMD_RST_PTRS)
+        for k in range(K_DIM):
+            col_A = [x_vec[k], 0, 0, 0] 
+            row_B = W_int[k, :]         
+            await mmio_write(dut, REG_WRITE_A, pack_int8(col_A))
+            await mmio_write(dut, REG_WRITE_W, pack_int8(row_B))
+            
+        # 4. Execução HW
+        await mmio_write(dut, REG_CONFIG, K_DIM)
+        await mmio_write(dut, REG_CMD, CMD_START)
+        
+        for _ in range(5000): 
+            if (await mmio_read(dut, REG_STATUS) & STATUS_DONE): break
+            await RisingEdge(dut.clk)
+
+        # 5. Leitura HW
+        results = []
+        for _ in range(4):
+            while (await mmio_read(dut, REG_STATUS) & STATUS_OUT_VALID) == 0:
+                await RisingEdge(dut.clk)
+            val = await mmio_read(dut, REG_READ_OUT)
+            results.append(unpack_int8(val))
+        
+        results.reverse()
+        hw_scores = results[0]
+
+        # 6. Validação 
+        diff = [abs(h - s) for h, s in zip(hw_scores, expected_scores)]
+        is_hw_valid = max(diff) <= 2
+        
+        hw_pred = np.argmax(hw_scores)
+        is_pred_correct = (hw_pred == label_true)
+
+        if is_hw_valid: hw_sw_matches += 1
+        if is_pred_correct: correct_preds += 1
+
+        # Logs
+        if idx > 0 and idx % 10 == 0:
+            test_utils.log_info(f"Progresso: {idx}/{len(X_test)} imagens...")
+
+        if not is_hw_valid:
+            test_utils.log_error(f"[HW FAIL] Img {idx} | Ref: {expected_scores} | HW: {hw_scores} | Diff: {diff}")
+        elif not is_pred_correct:
+            test_utils.log_warning(f"[MODEL MISS] Img {idx} | Real: {label_true} | Pred: {hw_pred}")
+
+    # Relatório Final
+    acc_model = (correct_preds / len(X_test)) * 100.0
+    hw_reliability = (hw_sw_matches / len(X_test)) * 100.0
     
-    test_utils.log_info(f"Iniciando inferência em {NUM_SAMPLES} imagens...")
+    test_utils.log_header(f"RESULTADO FINAL: Acurácia {acc_model:.2f}%")
 
-    match_count = 0
-    real_match_count = 0
+    # Validação Final
+    if hw_reliability < 100.0:
+        test_utils.log_error(f"Fidelidade do Hardware: {hw_reliability:.2f}% (FALHA)")
+        assert False, "Hardware instável."
+    else:
+        test_utils.log_info("Fidelidade do Hardware: 100%")
 
-    for img_idx in range(NUM_SAMPLES):
-        x_vec = X_int[img_idx]
-        hw_scores = np.zeros(10, dtype=int)
-        
-        # --- TILING LOOP ---
-        for col_start in range(0, NUM_LABELS, COLS):
-            col_end = min(col_start + COLS, NUM_LABELS)
-            current_chunk_size = col_end - col_start
-            
-            # Carregar Bias
-            for i in range(current_chunk_size):
-                await mmio_write(dut, REG_BIAS_BASE + (i*4), B_int[col_start + i])
-            for i in range(current_chunk_size, 4):
-                await mmio_write(dut, REG_BIAS_BASE + (i*4), 0)
-
-            # Clear
-            await mmio_write(dut, REG_CTRL, CTRL_ACC_CLEAR)
-            await mmio_write(dut, REG_CTRL, 0)
-            
-            # SYSTOLIC FEED
-            for k in range(INPUT_SIZE):
-                vec_a = [x_vec[k], 0, 0, 0]
-                w_row_slice = W_int[k, col_start:col_end]
-                vec_w = [0]*4
-                for idx, w_val in enumerate(w_row_slice):
-                    vec_w[idx] = w_val
-                
-                await mmio_write(dut, REG_WRITE_A, pack_int8(vec_a))
-                await mmio_write(dut, REG_WRITE_W, pack_int8(vec_w))
-            
-            # Wait
-            for _ in range(60): await RisingEdge(dut.clk)
-            
-            # Dump
-            await mmio_write(dut, REG_CTRL, CTRL_ACC_DUMP)
-            results = []
-            for _ in range(4):
-                while (await mmio_read(dut, REG_STATUS) & STATUS_OUT_VALID) == 0:
-                    await RisingEdge(dut.clk)
-                results.append(unpack_int8(await mmio_read(dut, REG_READ_OUT)))
-            await mmio_write(dut, REG_CTRL, 0)
-
-            valid_row = results[3] 
-            hw_scores[col_start : col_end] = valid_row[:current_chunk_size]
-
-        # --- Validação ---
-        
-        npu_pred = np.argmax(hw_scores)
-        
-        # Referência Python (Simulação do Hardware)
-        ref_dot = np.dot(x_vec, W_int) + B_int
-        ref_proc = (ref_dot * ppu_mult) 
-        # Simula shift com arredondamento
-        round_add = (1 << (ppu_shift - 1)) if ppu_shift > 0 else 0
-        ref_proc = np.floor((ref_proc + round_add) >> ppu_shift).astype(int)
-        ref_proc = np.clip(ref_proc, -128, 127)
-        ref_pred = np.argmax(ref_proc)
-        
-        true_label = y_true[img_idx]
-
-        msg = f"Img {img_idx}: Real={true_label} | NPU={npu_pred} (Ref={ref_pred})"
-        
-        # Checa consistência HW vs SW
-        hw_ok = (npu_pred == ref_pred)
-        # Checa acerto Real
-        real_ok = (npu_pred == true_label)
-        
-        if real_ok:
-            test_utils.log_success(f"{msg} [ACERTOU]")
-            real_match_count += 1
-        else:
-            test_utils.log_warning(f"{msg} [ERROU]")
-
-        if hw_ok: match_count += 1
-
-    test_utils.log_header("RESULTADO FINAL")
-    test_utils.log_info(f"Consistência HW/Ref: {match_count}/{NUM_SAMPLES}")
-    test_utils.log_success(f"Acurácia Real: {real_match_count}/{NUM_SAMPLES} (Modelo Treinado)")
+    # Meta de Acurácia: >90%
+    if acc_model < 90.0:
+        test_utils.log_warning(f"Acurácia {acc_model:.2f}% está abaixo de 90%.")
+        assert False, "Modelo impreciso."
+    else:
+        test_utils.log_success("SUCESSO: Hardware Fiel e Modelo Preciso!")
