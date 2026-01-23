@@ -33,6 +33,8 @@ CMD_ACC_CLEAR    = (1 << 2)
 CMD_NO_DRAIN     = (1 << 3)
 CMD_RST_W_RD     = (1 << 4)
 CMD_RST_I_RD     = (1 << 5)
+CMD_RST_WR_W     = (1 << 6)
+CMD_RST_WR_I     = (1 << 7)
 
 # ==============================================================================
 # MODELO DE REFERÊNCIA
@@ -386,3 +388,71 @@ async def test_consecutive_runs_no_reset(dut):
             assert False
         
     log_success("10 execuções consecutivas passaram com sucesso.")
+
+@cocotb.test()
+async def test_locality_feature(dut):
+    """
+    Testa a reutilização de dados (Localidade).
+    Cenário: Imagem (Input) constante, troca apenas os Pesos (Filtros).
+    """
+    log_header("TESTE: LOCALIDADE DE DADOS (Reuse Inputs)")
+    cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
+    await reset_dut(dut)
+
+    K_DIM = 4
+    # Configuração Neutra
+    await npu_setup_config(dut, mult=1, shift=0, zero=0, bias=[0]*4)
+
+    # -------------------------------------------------------
+    # PASSADA 1: Carrega TUDO (Input A, Peso A)
+    # -------------------------------------------------------
+    input_A = [[10]*K_DIM for _ in range(4)] # Inputs = 10
+    weight_A = [[1]*4 for _ in range(K_DIM)] # Pesos = 1
+    
+    log_info("Passada 1: Carregando Input A e Peso A...")
+    await npu_load_data(dut, input_A, weight_A, K_DIM)
+    
+    # Executa Passada 1
+    await mmio_write(dut, REG_CONFIG, K_DIM)
+    await mmio_write(dut, REG_CMD, CMD_START | CMD_RST_W_RD | CMD_RST_I_RD | CMD_ACC_CLEAR)
+    
+    while (await mmio_read(dut, REG_STATUS) & STATUS_DONE) == 0: await RisingEdge(dut.clk)
+    
+    # Drena saída (para limpar FIFO, não precisamos validar agora)
+    for _ in range(4): 
+        while (await mmio_read(dut, REG_STATUS) & STATUS_OUT_VALID) == 0: await RisingEdge(dut.clk)
+        await mmio_read(dut, REG_READ_OUT)
+
+    # -------------------------------------------------------
+    # PASSADA 2: Troca APENAS Pesos (Input A mantém, Peso B)
+    # -------------------------------------------------------
+    weight_B = [[2]*4 for _ in range(K_DIM)] # Pesos = 2
+    
+    log_info("Passada 2: Resetando APENAS ponteiro de Pesos...")
+    # Zera ponteiro de escrita de Pesos (Bit 6), mas NÃO o de Inputs (Bit 7 ou 0)
+    await mmio_write(dut, REG_CMD, CMD_RST_WR_W) 
+    
+    log_info("Carregando Peso B (Input A deve estar lá)...")
+    for k in range(K_DIM):
+        row_B = weight_B[k]
+        # Escreve apenas na porta de Pesos!
+        await mmio_write(dut, REG_WRITE_W, pack_int8(row_B))
+        
+    # Executa Passada 2 (Importante: Resetar ponteiros de LEITURA para ler do zero)
+    await mmio_write(dut, REG_CMD, CMD_START | CMD_RST_W_RD | CMD_RST_I_RD | CMD_ACC_CLEAR)
+    
+    while (await mmio_read(dut, REG_STATUS) & STATUS_DONE) == 0: await RisingEdge(dut.clk)
+    
+    # Verifica Resultado: Input A (10) * Peso B (2) * K(4) = 80
+    results = []
+    for _ in range(4):
+        val = await mmio_read(dut, REG_READ_OUT)
+        results.append(unpack_int8(val))
+    results.reverse()
+    
+    expected_val = 10 * 2 * 4 # = 80
+    if results[0][0] == expected_val:
+        log_success("SUCESSO: Dados de Input foram reutilizados corretamente!")
+    else:
+        log_error(f"FALHA: Esperado {expected_val}, Lido {results[0][0]}. (Input foi apagado?)")
+        assert False

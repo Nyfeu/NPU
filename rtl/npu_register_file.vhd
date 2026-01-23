@@ -213,9 +213,17 @@ begin
                             case v_addr_idx is
                                 -- [0x04] CMD
                                 when 16#04# => 
-                                    -- Bit 0: Reset Pointers (DMA Write Ptrs)
+                                    -- Bit 0: Global Pointers Reset (DMA Write Ptrs) 
                                     if data_i(0) = '1' then 
                                         r_wgt_wr_ptr <= (others => '0');
+                                        r_inp_wr_ptr <= (others => '0');
+                                    end if;
+                                    -- Bit 6: Reset apenas Wgt Write Ptr (NOVO)
+                                    if data_i(6) = '1' then 
+                                        r_wgt_wr_ptr <= (others => '0');
+                                    end if;
+                                    -- Bit 7: Reset apenas Inp Write Ptr (NOVO)
+                                    if data_i(7) = '1' then 
                                         r_inp_wr_ptr <= (others => '0');
                                     end if;
                                     -- Bit 2: ACC_CLEAR
@@ -279,7 +287,7 @@ begin
                     rdy_o <= '0';
                     s_ack <= '0';
                 end if;
-                
+
             end if;
         end if;
     end process;

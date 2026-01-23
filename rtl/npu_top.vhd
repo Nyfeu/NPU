@@ -29,6 +29,8 @@
 --   - Bit[3]: ACC_NO_DRAIN (1=Mantém resultado no Array/Tiling, 0=Salva na FIFO)
 --   - Bit[4]: RST_W_RD     (1=Zera ponteiro leitura Pesos, 0=Continua de onde parou)
 --   - Bit[5]: RST_I_RD     (1=Zera ponteiro leitura Inputs, 0=Continua de onde parou)
+--   - Bit[6]: RST_WR_W     (1=Zera ponteiro de escrita Pesos, 0=Continua de onde parou)
+--   - Bit[7]: RST_WR_I     (1=Zera ponteiro de escrita Inputs, 0=Continua de onde parou)
 --
 --  0x08 : CONFIG (RW) [Tamanho do Tile / Ciclos]
 --  0x10 : W_PORT (WO) [Porta de Pesos - Fixed Dest]
