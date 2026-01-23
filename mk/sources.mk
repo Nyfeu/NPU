@@ -12,6 +12,9 @@ VHDL_SRCS += $(RTL_DIR)/core/input_buffer.vhd
 VHDL_SRCS += $(RTL_DIR)/core/output_buffer.vhd
 VHDL_SRCS += $(RTL_DIR)/core/npu_core.vhd
 VHDL_SRCS += $(RTL_DIR)/ppu/post_process.vhd
+VHDL_SRCS += $(RTL_DIR)/npu_controller.vhd
+VHDL_SRCS += $(RTL_DIR)/npu_datapath.vhd
+VHDL_SRCS += $(RTL_DIR)/npu_register_file.vhd
 VHDL_SRCS += $(RTL_DIR)/npu_top.vhd
 
 # FPGA Wrapper (Apenas usado no Vivado ou simulação do Top FPGA)
