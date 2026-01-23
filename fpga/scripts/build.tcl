@@ -20,7 +20,7 @@ read_vhdl "pkg/npu_pkg.vhd"
 read_vhdl [glob rtl/common/*.vhd]
 read_vhdl [glob rtl/core/*.vhd]
 read_vhdl [glob rtl/ppu/*.vhd]
-read_vhdl "rtl/npu_top.vhd"
+read_vhdl [glob rtl/*.vhd]
 
 # FPGA Tester (HIL Wrapper)
 read_vhdl [glob rtl/fpga_tester/*.vhd]
