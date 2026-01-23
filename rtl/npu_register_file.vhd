@@ -159,6 +159,7 @@ begin
         if rising_edge(clk) then
 
             if rst_n = '0' then
+
                 rdy_o <= '0';
                 s_ack <= '0';
                 data_o <= (others => '0');
@@ -176,8 +177,11 @@ begin
                 cmd_rst_w <= '0';
                 cmd_rst_i <= '0';
 
+                r_en_relu <= '0';
+
             else
 
+                -- LÓGICA DE OPERAÇÃO NORMAL
                 if not is_x(addr_i(7 downto 0)) then
                     v_addr_idx := to_integer(unsigned(addr_i(7 downto 0)));
                 end if;
@@ -189,7 +193,9 @@ begin
                 s_cmd_start <= '0'; 
 
                 -- Auto-clear do sinal de clear (dura 1 ciclo de ack)
-                if s_ack = '1' then s_acc_clear <= '0'; end if;
+                if s_ack = '1' then 
+                    s_acc_clear <= '0'; 
+                end if;
 
                 -- Handshake MMIO
                 if vld_i = '1' then
@@ -198,8 +204,12 @@ begin
                     if s_ack = '0' then
                         s_ack <= '1';
                         
-                        -- ESCRITA
-                        if we_i = '1' then
+                        -------------------------------------------------------------------------------------
+                        -- ESCRITA (MMIO)
+                        -- Só é aceita se a NPU estiver IDLE
+                        -------------------------------------------------------------------------------------
+
+                        if we_i = '1' and sts_busy = '0' then
                             case v_addr_idx is
                                 -- [0x04] CMD
                                 when 16#04# => 
@@ -246,7 +256,10 @@ begin
                                 when others => null;
                             end case;
                         
-                        -- LEITURA
+                        -------------------------------------------------------------------------------------
+                        -- LEITURA (MMIO)
+                        -------------------------------------------------------------------------------------
+
                         else
                             case v_addr_idx is
                                 -- [0x00] STATUS
@@ -261,10 +274,12 @@ begin
                             end case;
                         end if;
                     end if;
+
                 else
                     rdy_o <= '0';
                     s_ack <= '0';
                 end if;
+                
             end if;
         end if;
     end process;
