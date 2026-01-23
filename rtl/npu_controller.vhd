@@ -69,7 +69,13 @@ entity npu_controller is
 
         ctl_ram_re    : out std_logic;                           -- Read Enable
         ctl_core_vld  : out std_logic;                           -- Valid In (Delayed)
-        ctl_acc_dump  : out std_logic
+        ctl_acc_dump  : out std_logic;
+
+        -----------------------------------------------------------------------------------------------------
+        -- Backpressure
+        -----------------------------------------------------------------------------------------------------
+
+        fifo_ready_i  : in  std_logic                            -- (1 = Pode enviar, 0 = Pare)
 
         -----------------------------------------------------------------------------------------------------
 
@@ -147,7 +153,7 @@ begin
                             -- Capture configs
                             r_no_drain <= cmd_no_drain;
 
-                            -- Reset Pointers if requested
+                            -- Reset Pointers caso requisitado
                             if cmd_rst_w = '1' then r_wgt_rd_ptr <= (others => '0'); end if;
                             if cmd_rst_i = '1' then r_inp_rd_ptr <= (others => '0'); end if;
                         end if;
@@ -182,21 +188,39 @@ begin
 
                     when DRAIN =>
                         s_ram_read_en <= '0';
-                        ctl_acc_dump <= '1';
-                        
-                        -- Espera o tempo exato para os dados saírem do Array + PPU
-                        if r_cycle_cnt < C_DUMP_LATENCY then
-                            r_cycle_cnt <= r_cycle_cnt + 1;
+
+                        -- Backpressure (STALL)
+                        if fifo_ready_i = '1' then
+
+                            -- Caminho livre: Ativa o Dump e conta o tempo
+                            ctl_acc_dump <= '1';
+                            
+                            if r_cycle_cnt < C_DUMP_LATENCY then
+
+                                r_cycle_cnt <= r_cycle_cnt + 1;
+
+                            else
+
+                                state <= IDLE;
+                                sts_done <= '1';
+                                ctl_acc_dump <= '0';
+
+                            end if;
+
                         else
-                            state <= IDLE;
-                            sts_done <= '1';
+
+                            -- FIFO Cheia: Congela o Dump
+                            -- O Array sistólico mantém os dados internamente até o dump voltar a 1
                             ctl_acc_dump <= '0';
+
                         end if;
 
                 end case;
             end if;
         end if;
     end process;
+
+    ---------------------------------------------------------------------------------------------------------
 
 end architecture; -- rtl
 

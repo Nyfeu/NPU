@@ -100,40 +100,41 @@ architecture rtl of npu_top is
 
     -- Register File <-> Controller -------------------------------------------------------------------------
 
-    signal s_cmd_start    : std_logic := '0';
-    signal s_cmd_no_drain : std_logic := '0';
-    signal s_cmd_rst_w    : std_logic := '0';
-    signal s_cmd_rst_i    : std_logic := '0';
-    signal s_sts_busy     : std_logic := '0';
-    signal s_sts_done     : std_logic := '0';
-    signal s_cfg_run_size : unsigned(31 downto 0) := (others => '0');
+    signal s_cmd_start           : std_logic := '0';
+    signal s_cmd_no_drain        : std_logic := '0';
+    signal s_cmd_rst_w           : std_logic := '0';
+    signal s_cmd_rst_i           : std_logic := '0';
+    signal s_sts_busy            : std_logic := '0';
+    signal s_sts_done            : std_logic := '0';
+    signal s_cfg_run_size        : unsigned(31 downto 0) := (others => '0');
 
     -- Register File <-> Datapath ---------------------------------------------------------------------------
 
-    signal s_cmd_clear    : std_logic := '0';
-    signal s_ram_w_data   : std_logic_vector(31 downto 0) := (others => '0');
-    signal s_wgt_we       : std_logic := '0';
-    signal s_inp_we       : std_logic := '0';
-    signal s_wgt_wr_ptr   : unsigned(31 downto 0) := (others => '0');
-    signal s_inp_wr_ptr   : unsigned(31 downto 0) := (others => '0');
-    signal s_fifo_pop     : std_logic := '0';
-    signal s_fifo_r_valid : std_logic := '0';
-    signal s_fifo_r_data  : std_logic_vector(31 downto 0) := (others => '0');
+    signal s_cmd_clear           : std_logic := '0';
+    signal s_ram_w_data          : std_logic_vector(31 downto 0) := (others => '0');
+    signal s_wgt_we              : std_logic := '0';
+    signal s_inp_we              : std_logic := '0';
+    signal s_wgt_wr_ptr          : unsigned(31 downto 0) := (others => '0');
+    signal s_inp_wr_ptr          : unsigned(31 downto 0) := (others => '0');
+    signal s_fifo_pop            : std_logic := '0';
+    signal s_fifo_r_valid        : std_logic := '0';
+    signal s_fifo_r_data         : std_logic_vector(31 downto 0) := (others => '0');
 
     -- Config Signals ---------------------------------------------------------------------------------------
 
-    signal s_cfg_relu      : std_logic := '0';
-    signal s_cfg_quant_sh  : std_logic_vector(4 downto 0) := (others => '0');
-    signal s_cfg_quant_zo  : std_logic_vector(DATA_W-1 downto 0) := (others => '0');
-    signal s_cfg_quant_mul : std_logic_vector(QUANT_W-1 downto 0) := (others => '0');
-    signal s_cfg_bias_vec  : std_logic_vector((COLS*ACC_W)-1 downto 0) := (others => '0');
+    signal s_cfg_relu            : std_logic := '0';
+    signal s_cfg_quant_sh        : std_logic_vector(4 downto 0) := (others => '0');
+    signal s_cfg_quant_zo        : std_logic_vector(DATA_W-1 downto 0) := (others => '0');
+    signal s_cfg_quant_mul       : std_logic_vector(QUANT_W-1 downto 0) := (others => '0');
+    signal s_cfg_bias_vec        : std_logic_vector((COLS*ACC_W)-1 downto 0) := (others => '0');
 
     -- Controller <-> Datapath ------------------------------------------------------------------------------
 
-    signal s_wgt_rd_ptr   : unsigned(31 downto 0) := (others => '0');
-    signal s_inp_rd_ptr   : unsigned(31 downto 0) := (others => '0');
-    signal s_ctl_acc_dump : std_logic := '0';
-    signal s_ctl_core_vld : std_logic := '0';
+    signal s_wgt_rd_ptr          : unsigned(31 downto 0) := (others => '0');
+    signal s_inp_rd_ptr          : unsigned(31 downto 0) := (others => '0');
+    signal s_ctl_acc_dump        : std_logic := '0';
+    signal s_ctl_core_vld        : std_logic := '0';
+    signal s_fifo_ready_feedback : std_logic := '1';
 
     ---------------------------------------------------------------------------------------------------------
 
@@ -224,7 +225,10 @@ begin
             inp_rd_ptr    => s_inp_rd_ptr,
             ctl_ram_re    => open,                                -- Usado internamente para gerar core_vld
             ctl_core_vld  => s_ctl_core_vld, 
-            ctl_acc_dump  => s_ctl_acc_dump
+            ctl_acc_dump  => s_ctl_acc_dump,
+
+            -- Backpressure (STALL)
+            fifo_ready_i => s_fifo_ready_feedback
 
         );
 
@@ -243,34 +247,35 @@ begin
         )
         port map (
 
-            clk           => clk, 
-            rst_n         => rst_n,
+            clk                 => clk, 
+            rst_n               => rst_n,
 
             -- Write Side (RegFile)
-            wgt_we        => s_wgt_we, 
-            inp_we        => s_inp_we, 
-            w_data        => s_ram_w_data,
-            wgt_wr_ptr    => s_wgt_wr_ptr, 
-            inp_wr_ptr    => s_inp_wr_ptr,
+            wgt_we              => s_wgt_we, 
+            inp_we              => s_inp_we, 
+            w_data              => s_ram_w_data,
+            wgt_wr_ptr          => s_wgt_wr_ptr, 
+            inp_wr_ptr          => s_inp_wr_ptr,
 
             -- Read Side (Controller)
-            wgt_rd_ptr    => s_wgt_rd_ptr, 
-            inp_rd_ptr    => s_inp_rd_ptr,
-            ctl_acc_clear => s_cmd_clear, 
-            ctl_acc_dump  => s_ctl_acc_dump, 
-            ctl_valid_in  => s_ctl_core_vld,
+            wgt_rd_ptr          => s_wgt_rd_ptr, 
+            inp_rd_ptr          => s_inp_rd_ptr,
+            ctl_acc_clear       => s_cmd_clear, 
+            ctl_acc_dump        => s_ctl_acc_dump, 
+            ctl_valid_in        => s_ctl_core_vld,
 
             -- Configs
-            cfg_relu      => s_cfg_relu, 
-            cfg_quant_sh  => s_cfg_quant_sh, 
-            cfg_quant_zo  => s_cfg_quant_zo, 
-            cfg_quant_mul => s_cfg_quant_mul, 
-            cfg_bias_vec  => s_cfg_bias_vec,
+            cfg_relu            => s_cfg_relu, 
+            cfg_quant_sh        => s_cfg_quant_sh, 
+            cfg_quant_zo        => s_cfg_quant_zo, 
+            cfg_quant_mul       => s_cfg_quant_mul, 
+            cfg_bias_vec        => s_cfg_bias_vec,
             
             -- FIFO
-            fifo_pop      => s_fifo_pop, 
-            fifo_r_valid  => s_fifo_r_valid, 
-            fifo_r_data   => s_fifo_r_data
+            fifo_pop            => s_fifo_pop, 
+            fifo_r_valid        => s_fifo_r_valid, 
+            fifo_r_data         => s_fifo_r_data,
+            fifo_ready_feedback => s_fifo_ready_feedback
         
         );
 

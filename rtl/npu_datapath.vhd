@@ -44,51 +44,52 @@ entity npu_datapath is
         -- Sinais de Controle e Sincronização
         -----------------------------------------------------------------------------------------------------
 
-        clk           : in  std_logic;
-        rst_n         : in  std_logic;
+        clk                 : in  std_logic;
+        rst_n               : in  std_logic;
 
         -----------------------------------------------------------------------------------------------------
         -- Controle de Memória (Escrita - MMIO)
         -----------------------------------------------------------------------------------------------------
 
-        wgt_we        : in  std_logic;
-        inp_we        : in  std_logic;
-        w_data        : in  std_logic_vector(31 downto 0);
-        wgt_wr_ptr    : in  unsigned(31 downto 0);
-        inp_wr_ptr    : in  unsigned(31 downto 0);
+        wgt_we              : in  std_logic;
+        inp_we              : in  std_logic;
+        w_data              : in  std_logic_vector(31 downto 0);
+        wgt_wr_ptr          : in  unsigned(31 downto 0);
+        inp_wr_ptr          : in  unsigned(31 downto 0);
 
         -----------------------------------------------------------------------------------------------------
         -- Controle de Memória (Leitura - Controller)
         -----------------------------------------------------------------------------------------------------
 
-        wgt_rd_ptr    : in  unsigned(31 downto 0);
-        inp_rd_ptr    : in  unsigned(31 downto 0);
+        wgt_rd_ptr          : in  unsigned(31 downto 0);
+        inp_rd_ptr          : in  unsigned(31 downto 0);
 
         -----------------------------------------------------------------------------------------------------
         -- Controle do Core
         -----------------------------------------------------------------------------------------------------
 
-        ctl_acc_clear : in  std_logic;
-        ctl_acc_dump  : in  std_logic;
-        ctl_valid_in  : in  std_logic; -- Sincronizado com leitura RAM
+        ctl_acc_clear       : in  std_logic;
+        ctl_acc_dump        : in  std_logic;
+        ctl_valid_in        : in  std_logic;                     -- Sincronizado com leitura RAM
 
         -----------------------------------------------------------------------------------------------------
         -- Configurações PPU
         -----------------------------------------------------------------------------------------------------
 
-        cfg_relu      : in  std_logic;
-        cfg_quant_sh  : in  std_logic_vector(4 downto 0);
-        cfg_quant_zo  : in  std_logic_vector(DATA_W-1 downto 0);
-        cfg_quant_mul : in  std_logic_vector(QUANT_W-1 downto 0);
-        cfg_bias_vec  : in  std_logic_vector((COLS*ACC_W)-1 downto 0);
+        cfg_relu            : in  std_logic;
+        cfg_quant_sh        : in  std_logic_vector(4 downto 0);
+        cfg_quant_zo        : in  std_logic_vector(DATA_W-1 downto 0);
+        cfg_quant_mul       : in  std_logic_vector(QUANT_W-1 downto 0);
+        cfg_bias_vec        : in  std_logic_vector((COLS*ACC_W)-1 downto 0);
 
         -----------------------------------------------------------------------------------------------------
         -- Saída FIFO
         -----------------------------------------------------------------------------------------------------
 
-        fifo_pop      : in  std_logic;
-        fifo_r_valid  : out std_logic;
-        fifo_r_data   : out std_logic_vector(31 downto 0)
+        fifo_pop            : in  std_logic;
+        fifo_r_valid        : out std_logic;
+        fifo_r_data         : out std_logic_vector(31 downto 0);
+        fifo_ready_feedback : out std_logic
     
         -----------------------------------------------------------------------------------------------------
     
@@ -205,6 +206,10 @@ begin
 
     ofifo_w_valid <= ppu_valid_vec(0); 
     ofifo_w_data  <= std_logic_vector(resize(unsigned(ppu_data_vec), 32));
+
+    -- Exportando o sinal de ready (backpressure)
+    -- Se '0', FIFO cheia, Controller deve pausar.
+    fifo_ready_feedback <= ofifo_w_ready;
     
     -- Reset da FIFO deve ocorrer apenas se houver CLEAR. No modo Tiling, mantém.
     s_fifo_rst_n  <= rst_n and not ctl_acc_clear;
