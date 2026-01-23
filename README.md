@@ -11,28 +11,28 @@
     ██╔██╗ ██║██████╔╝██║   ██║
     ██║╚██╗██║██╔═══╝ ██║   ██║     ->> PROJECT: NPU Systolic Array Accelerator
     ██║ ╚████║██║     ╚██████╔╝     ->> AUTHOR: André Solano F. R. Maiolini
-    ╚═╝  ╚═══╝╚═╝      ╚═════╝      ->> DATE: 11/1/2026
+    ╚═╝  ╚═══╝╚═╝      ╚═════╝      ->> DATE: 23/1/2026
 ```
 
-This repository contains the implementation of a Neural Processing Unit (NPU) based on a Systolic Array architecture, designed to accelerate NN (Neural Networks) workloads. The project is developed entirely in VHDL-2008. 
+This repository contains the implementation of a Neural Processing Unit (NPU) based on a Systolic Array architecture, designed to accelerate NN (Neural Networks) workloads. The project is developed entirely in VHDL-2008.
 
-The design implements a Weight-Stationary architecture, where weights are pre-loaded into the Processing Elements (PEs) and input activations flow through the array in a wavefront pattern. This approach maximizes data reuse and minimizes memory bandwidth requirements.
+The design implements an **Output-Stationary** architecture. This approach leverages the **principle of locality** within the Processing Elements (PEs) registers to maximize internal memory reuse. Partial sums are accumulated locally within the PEs, significantly reducing the bandwidth required for writing intermediate results back to memory.
 
 Verification is a core pillar of this project. It utilizes Cocotb (Python) for automated testing, featuring unit tests, randomized fuzzing against Python Golden Models, and end-to-end integration tests.
 
 | Document | Description | Link |
-| :-: | :-: | :-: | 
+| :-- | :-- | :- | 
 | **Programmer's Guide** | Register map, UART protocol, and data formats. | [**docs/NPU_PROGRAMMING.md** ](./docs/NPU_PROGRAMMING.md) | 
 | **MNIST Dataset** | Details on the digit recognition network. | [**docs/MNIST.md** ](./docs/MNIST.md) | 
-| **IRIS Dataset** | Details on the iris flower classification network. | [**docs/IRIS.md** ](./docs/IRIS.md) | 
+| **IRIS Dataset** | Details on the iris flower classification network. | [**docs/IRIS.md** ](./docs/IRIS.md) |
 
 ## 🎯 Goals and Features
 
-* **Architecture**: Systloci Array (Weight Stationary)
+* **Architecture**: Systolic Array (**Output Stationary**) 4x4
+* **Optimization**: High internal memory reuse via Register Locality
 * **Precision**: INT8 for Input/Weights, INT32 for Accumulators
-* **Language**: VHDL-2008
-* **Automation**: fully automated build system via `makefile` for simulation and waveform generation
-* **Hadware-in-the-Loop (HIL)**: real-time inference verification on Nexys 4 FPGA using Python drivers
+* **Communication**: UART High-Speed (921.600 bps) 
+* **HIL**: Real-time Hardware-in-the-Loop with Python/PyQt6 Interface
 
 ## 📂 Project Structure
 
@@ -188,13 +188,15 @@ make hil_iris
 ## ⚙️ Memory Map & Control
 
 The NPU uses a memory-mapped interface over UART:
+
 | Address | Register / FIFO | Access | Description |
-| :-: | :-: | :-: | :-: |
-| `0x00` | `CSR_CTRL`     | W | Control Flags (Load Weights, Clear Acc, ReLU) |
-| `0x04` | `CSR_QUANT`    | W | Quantization Shift Amount | 
-| `0x08` | `CSR_MULT`     | W | PPU Multiplier Factor |
-| `0x0C` | `CSR_STATUS`   | R |	Status Flags (Busy, Output Ready) |
-| `0x10` | `FIFO_WEIGHTS` | W |	Write packed weights (Int8 x4) |
-| `0x14` | `FIFO_ACT`     | W |	Write input activations |
-| `0x18` | `FIFO_OUT`     | R |	Read result scores |
-| `0x20` | `BIAS_BASE`    | W |	Bias Registers Base Address |
+|--------:|------------------|:------:|-------------|
+| `0x00` | `CSR_STATUS`   | RO | Status Flags (Busy, Done, Output Valid) |
+| `0x04` | `CSR_CMD`      | WO | Command Register (Start, Clear, Pointer Resets) |
+| `0x08` | `CSR_CONFIG`   | RW | Run Configuration (Tile Size) |
+| `0x10` | `REG_WRITE_W`  | WO | Weight Input Port (Fixed Address) |
+| `0x14` | `REG_WRITE_A`  | WO | Activation Input Port (Fixed Address) |
+| `0x18` | `REG_READ_OUT` | RO | Output Read Port (Fixed Address) |
+| `0x40` | `QUANT_CFG`    | RW | Quantization Shift & Zero Point |
+| `0x44` | `QUANT_MULT`   | RW | PPU Multiplier |
+| `0x80` | `BIAS_BASE`    | RW | Base Address for Bias Registers |

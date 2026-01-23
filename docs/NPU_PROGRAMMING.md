@@ -1,38 +1,49 @@
 # 📃 Modelo de Programação da NPU
 
 ## 1. Visão Geral
-A NPU opera como um periférico mapeado em memória (MMIO) com comportamento de fluxo (stream). Devido à natureza de *pipeline* sistólico, **não há mecanismo de travamento (stall) automático do núcleo** caso a saída esteja cheia. O controle de fluxo deve ser gerenciado pelo Software ou DMA.
+A NPU opera como um periférico mapeado em memória (MMIO) com arquitetura **Output Stationary**. Isso significa que os acumuladores internos mantêm os resultados parciais (Princípio da Localidade) até que o processamento completo de um vetor (Tile) seja concluído ou que um comando de `DUMP` seja enviado.
 
 ## 2. Mapa de Registradores (Base Address + Offset)
 
 | Offset | Registrador | Acesso | Descrição |
 | :--- | :--- | :--- | :--- |
-| `0x00` | **CTRL** | RW | Configuração de modo e ativação. |
-| `0x04` | **QUANT** | RW | Parâmetros de quantização (Shift, ZP). |
-| `0x08` | **MULT** | RW | Multiplicador da PPU. |
-| `0x0C` | **STATUS** | RO | Flags de estado das FIFOs. |
-| `0x10` | **W_FIFO** | WO | Porta de entrada de Pesos. |
-| `0x14` | **IN_FIFO** | WO | Porta de entrada de Ativações (Dados). |
-| `0x18` | **OUT_FIFO** | RO | Porta de saída de Resultados. |
+| `0x00` | **STATUS** | RO | Estado do núcleo. |
+| `0x04` | **CMD** | WO | Comandos de disparo e controle de ponteiros. |
+| `0x08` | **CONFIG** | RW | Tamanho da execução (K_DIM). |
+| `0x10` | **WRITE_W** | WO | Porta de escrita de Pesos (Weights). |
+| `0x14` | **WRITE_A** | WO | Porta de escrita de Ativações (Inputs). |
+| `0x18` | **READ_OUT** | RO | Porta de leitura de Resultados. |
+| `0x40` | **QUANT_CFG** | RW | Bits [4:0]: Shift Amount. Bits [15:8]: Zero Point. |
+| `0x44` | **QUANT_MULT**| RW | Multiplicador Inteiro da PPU. |
+| `0x80` | **BIAS_BASE** | RW | Vetor de Bias (4 x 32-bit). |
 
-## 3. Perda de Dados (Data Loss)
+## 3. Detalhe dos Registradores
 
-### Problema
-A NPU processa 1 vetor de entrada e gera 1 vetor de saída com latência fixa. Se a **Output FIFO** estiver cheia quando o resultado ficar pronto, o dado será **descartado** (Overflow).
+### CMD (0x04) - Command Register
+Este registrador controla a Máquina de Estados e os Ponteiros de DMA. É *Write-Only*.
 
-### Solução: Janela Deslizante (Credit-Based Flow)
-Para garantir integridade zero-loss, o driver deve garantir a invariante:
-` (Vetores Enviados - Vetores Lidos) <= PROFUNDIDADE_FIFO_SAIDA `
+| Bit | Nome | Descrição |
+| :--- | :--- | :--- |
+| **0** | `RST_DMA_PTRS` | Reseta TODOS os ponteiros de escrita e leitura para zero. Usado no início de uma nova inferência. |
+| **1** | `START` | Inicia a execução da Matriz Sistólica. |
+| **2** | `ACC_CLEAR` | **1**: Limpa os acumuladores (Outputs) antes de iniciar. **0**: Acumula sobre o valor anterior (Tiling Temporal). |
+| **4** | `RST_W_RD` | Reseta apenas o ponteiro de **leitura** de Pesos. |
+| **5** | `RST_I_RD` | Reseta apenas o ponteiro de **leitura** de Inputs. |
+| **6** | `RST_WR_W` | Reseta apenas o ponteiro de **escrita** de Pesos (Recarga parcial). |
+| **7** | `RST_WR_I` | Reseta apenas o ponteiro de **escrita** de Inputs. |
 
-A profundidade padrão da FIFO é **64**.
+### STATUS (0x00) - Status Register
 
-## 4. Bits de Status (Polling)
+| Bit | Nome | Descrição |
+| :--- | :--- | :--- |
+| **1** | `DONE` | **1**: Processamento concluído. O Host pode ler os resultados ou iniciar novo tile. |
+| **3** | `OUT_VALID` | **1**: A FIFO de saída contém dados válidos para leitura. |
 
-Use o registrador `STATUS (0x0C)` para decisões em tempo real:
+## 4. Estratégia de Tiling (Output Stationary)
 
-* **Bit 0 (IN_FULL):** 
-    * `1`: Pare de enviar dados.
-    * `0`: Seguro para enviar.
-* **Bit 3 (OUT_VALID):**
-    * `1`: Dados disponíveis. Leia imediatamente para liberar espaço.
-    * `0`: Buffer vazio.
+Graças ao reuso da memória interna e do princípio da localidade, redes maiores que o array físico (4x4) podem ser computadas em partes com menor impacto no tráfego de dados no barramento:
+
+1. Carregue o Input Vetor completo uma única vez.
+2. Carregue o primeiro bloco de Pesos.
+3. Execute (Output Stationary acumula o resultado parcial).
+4. Para o próximo bloco: Envie `CMD_RST_WR_W` (Reseta ponteiro de escrita de pesos) -> Carregue novos pesos -> Envie `CMD_START` com `RST_W_RD | RST_I_RD` (Para reler o input e acumular no mesmo output).
