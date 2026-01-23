@@ -5,338 +5,265 @@
 import serial
 import time
 import struct
-import math
 import sys
-import os
-import logging
-import warnings
 import numpy as np
+from datetime import datetime
+import warnings
 
-# --- CONFIGURAÇÃO DE LOGGING E CORES ---
+# ==============================================================================
+# CONFIGURAÇÃO
+# ==============================================================================
+SERIAL_PORT = 'COM6'  
+BAUD_RATE   = 921600
 
+# Mapa de Registradores
+REG_STATUS     = 0x00
+REG_CMD        = 0x04
+REG_CONFIG     = 0x08
+REG_WRITE_W    = 0x10 
+REG_WRITE_A    = 0x14 
+REG_READ_OUT   = 0x18 
+REG_QUANT_CFG  = 0x40
+REG_QUANT_MULT = 0x44
+REG_BIAS_BASE  = 0x80
+
+STATUS_DONE      = (1 << 1)
+STATUS_OUT_VALID = (1 << 3)
+
+CMD_RST_DMA_PTRS = (1 << 0)
+CMD_START        = (1 << 1)
+CMD_ACC_CLEAR    = (1 << 2)
+CMD_RST_W_RD     = (1 << 4)
+CMD_RST_I_RD     = (1 << 5)
+CMD_RST_WR_W     = (1 << 6)
+CMD_RST_WR_I     = (1 << 7)
+
+# ==============================================================================
+# SISTEMA DE LOG E CORES
+# ==============================================================================
 class Colors:
     RESET   = "\033[0m"
     BOLD    = "\033[1m"
     DIM     = "\033[2m"
-    RED     = "\033[31m"
-    GREEN   = "\033[32m"
-    YELLOW  = "\033[33m"
-    BLUE    = "\033[34m"
-    CYAN    = "\033[36m"
-    WHITE   = "\033[37m"
+    RED     = "\033[91m"
+    GREEN   = "\033[92m"
+    YELLOW  = "\033[93m"
+    CYAN    = "\033[96m"
+    GREY    = "\033[90m"
 
-class ColoredFormatter(logging.Formatter):
-    fmt = "%(asctime)s | %(levelname)-8s | %(message)s"
-    FORMATS = {
-        logging.DEBUG:    Colors.DIM + fmt + Colors.RESET,
-        logging.INFO:     Colors.BLUE + "%(asctime)s " + Colors.RESET + "| " + Colors.GREEN + "%(levelname)-8s" + Colors.RESET + " | %(message)s",
-        logging.WARNING:  Colors.BLUE + "%(asctime)s " + Colors.RESET + "| " + Colors.YELLOW + "%(levelname)-8s" + Colors.RESET + " | %(message)s",
-        logging.ERROR:    Colors.BLUE + "%(asctime)s " + Colors.RESET + "| " + Colors.RED + "%(levelname)-8s" + Colors.RESET + " | %(message)s",
-        logging.CRITICAL: Colors.RED + Colors.BOLD + fmt + Colors.RESET,
-    }
+def get_timestamp(): return datetime.now().strftime('%H:%M:%S')
 
-    def format(self, record):
-        log_fmt = self.FORMATS.get(record.levelno)
-        formatter = logging.Formatter(log_fmt, datefmt='%H:%M:%S')
-        return formatter.format(record)
+def log_info(msg):    print(f"{Colors.GREY}[{get_timestamp()}]{Colors.RESET} {Colors.CYAN}[INFO]{Colors.RESET}    {msg}")
+def log_success(msg): print(f"{Colors.GREY}[{get_timestamp()}]{Colors.RESET} {Colors.GREEN}[PASS]{Colors.RESET}    {msg}")
+def log_error(msg):   print(f"{Colors.GREY}[{get_timestamp()}]{Colors.RESET} {Colors.RED}[FAIL]{Colors.RESET}    {msg}")
+def log_header(msg):  print(f"\n{Colors.YELLOW}{'='*80}\n {msg}\n{'='*80}{Colors.RESET}")
 
-def setup_logger():
-    warnings.simplefilter(action='ignore', category=FutureWarning)
-    logger = logging.getLogger("IRIS_HIL")
-    logger.setLevel(logging.INFO)
-    if logger.hasHandlers(): logger.handlers.clear()
+# ==============================================================================
+# DRIVER NPU
+# ==============================================================================
+class NPUDriver:
+    def __init__(self, port, baud):
+        try:
+            self.ser = serial.Serial(port, baud, timeout=2.0)
+            self.ser.reset_input_buffer()
+            log_success(f"FPGA Conectada: {port} @ {baud} bps")
+        except Exception as e:
+            log_error(f"Erro Serial: {e}")
+            sys.exit(1)
 
-    ch = logging.StreamHandler()
-    ch.setFormatter(ColoredFormatter())
-    logger.addHandler(ch)
+    def close(self): self.ser.close()
+
+    def write_reg(self, addr, data):
+        self.ser.write(struct.pack('>B I I', 0x01, addr, int(data) & 0xFFFFFFFF))
+        time.sleep(0.0001)
+
+    def read_reg(self, addr):
+        self.ser.write(struct.pack('>B I', 0x02, addr))
+        resp = self.ser.read(4)
+        return struct.unpack('>I', resp)[0] if len(resp) == 4 else 0
+
+    def wait_done(self):
+        while not (self.read_reg(REG_STATUS) & STATUS_DONE): pass
+
+    def read_results(self):
+        res = []
+        for _ in range(4):
+            while not (self.read_reg(REG_STATUS) & STATUS_OUT_VALID): pass
+            val = self.read_reg(REG_READ_OUT)
+            res.append(self.unpack_int8(val))
+            self.read_reg(REG_STATUS) # Bus Toggling
+        return res[::-1] # Row 0..3
+
+    def pack_int8(self, v): 
+        return sum(((int(x) & 0xFF) << (i*8)) for i, x in enumerate(v))
     
-    # Cria pasta build se não existir
-    if not os.path.exists("build"):
-        os.makedirs("build")
-        
-    log_file = os.path.join("build", "iris_test_report.log")
-    fh = logging.FileHandler(log_file, mode='w', encoding='utf-8')
-    fh.setFormatter(logging.Formatter('%(asctime)s | %(levelname)-8s | %(message)s', datefmt='%H:%M:%S'))
-    logger.addHandler(fh)
-    return logger
+    def unpack_int8(self, p):
+        return [(p >> (i*8) & 0xFF) - 256 if (p >> (i*8) & 0xFF) & 0x80 else (p >> (i*8) & 0xFF) for i in range(4)]
 
-log = setup_logger()
+# ==============================================================================
+# GOLDEN MODEL (SOFTWARE)
+# ==============================================================================
+def clamp_int8(val): return max(-128, min(127, int(val)))
 
+def model_ppu(acc, bias, mult, shift):
+    val = acc + bias
+    val = val * mult
+    if shift > 0: val = (val + (1 << (shift - 1))) >> shift
+    return clamp_int8(val)
+
+def compute_golden(input_vec_4, weights_4x4, bias_vec_4, mult, shift):
+    sw_scores = []
+    for cls_idx in range(4): # 4 colunas output (3 classes reais + 1 lixo)
+        acc = sum(input_vec_4[k] * weights_4x4[k][cls_idx] for k in range(4))
+        sw_scores.append(model_ppu(acc, bias_vec_4[cls_idx], mult, shift))
+    return sw_scores
+
+# ==============================================================================
+# DATA SCIENCE
+# ==============================================================================
 try:
     from sklearn import datasets
     from sklearn.linear_model import LogisticRegression
     from sklearn.model_selection import train_test_split
     from sklearn.preprocessing import StandardScaler
-except ImportError:
-    log.critical("SKLEARN ausente. Instale: pip install scikit-learn numpy")
-    sys.exit(1)
+except ImportError: sys.exit("Instale sklearn")
 
-# ==============================================================================
-# CONFIGURAÇÃO DE HARDWARE
-# ==============================================================================
-
-# Ajuste a porta COM conforme seu sistema (COMx no Windows, /dev/ttyUSBx no Linux)
-SERIAL_PORT = 'COM6'  
-BAUD_RATE   = 921600
-
-# Mapa de Registradores (NPU v2)
-ADDR_CSR_CTRL   = 0x00
-ADDR_CSR_QUANT  = 0x04
-ADDR_CSR_MULT   = 0x08
-ADDR_CSR_STATUS = 0x0C
-ADDR_WRITE_W    = 0x10 # Antigo ADDR_FIFO_W
-ADDR_WRITE_A    = 0x14 # Antigo ADDR_FIFO_ACT
-ADDR_READ_OUT   = 0x18 # Antigo ADDR_FIFO_OUT
-ADDR_BIAS_BASE  = 0x20 
-
-# Bits de Controle
-CTRL_RELU       = 1  
-CTRL_ACC_CLEAR  = 4  
-CTRL_ACC_DUMP   = 8  
-STATUS_VALID    = 8  # Bit 3 do Status indica Output Valid
-
-ROWS = 4
-COLS = 4
-
-# ==============================================================================
-# CLASSES E UTILITÁRIOS
-# ==============================================================================
-
-class UART_Driver:
-    def __init__(self, port, baud):
-        try:
-            self.ser = serial.Serial(port, baud, timeout=2)
-            time.sleep(2) 
-            self.ser.reset_input_buffer()
-            log.info(f"Conexão Serial estabelecida: {Colors.BOLD}{port} @ {baud} bps{Colors.RESET}")
-        except Exception as e:
-            log.critical(f"Falha na conexão serial: {e}")
-            sys.exit(1)
-
-    def write(self, addr, data):
-        # Protocolo simples: 0x01 (Write) | ADDR (4B) | DATA (4B)
-        packet = struct.pack('>BII', 0x01, addr, int(data) & 0xFFFFFFFF) 
-        self.ser.write(packet)
-
-    def read(self, addr):
-        # Protocolo simples: 0x02 (Read) | ADDR (4B)
-        packet = struct.pack('>BI', 0x02, addr)
-        self.ser.write(packet)
-        resp = self.ser.read(4)
-        if len(resp) == 4:
-            return struct.unpack('>I', resp)[0]
-        else:
-            log.warning(f"Timeout lendo addr {hex(addr)}")
-            return 0
-
-    def close(self):
-        self.ser.close()
-        log.info("Conexão Serial encerrada.")
-
-def quantize_matrix(matrix, scale):
-    q = np.round(matrix / scale).astype(int)
-    return np.clip(q, -128, 127)
-
-def quantize_bias(bias, scale_w, scale_x):
-    scale = scale_w * scale_x
-    return np.round(bias / scale).astype(int)
-
-def pack_vec(values):
-    """Empacota 4 bytes em um inteiro de 32 bits (Little Endian para o bus)"""
-    packed = 0
-    for i, val in enumerate(values):
-        val = int(val) & 0xFF
-        packed |= (val << (i * 8))
-    return packed
-
-def unpack_vec(packed):
-    """Desempacota inteiro de 32 bits em 4 bytes (Signed Int8)"""
-    res = []
-    for i in range(4):
-        b = (packed >> (i*8)) & 0xFF
-        if b > 127: b -= 256
-        res.append(b)
-    return res
-
-# ==============================================================================
-# PREPARAÇÃO DO MODELO
-# ==============================================================================
-
-def get_iris_model():
-    log.info("Treinando modelo LogisticRegression no dataset Iris...")
+def get_quantized_model():
+    log_info("Treinando Modelo...")
     iris = datasets.load_iris()
-    X = iris.data; y = iris.target
+    X_train, X_test, y_train, y_test = train_test_split(iris.data, iris.target, test_size=0.3, random_state=42)
     
-    # Split
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
+    scaler = StandardScaler().fit(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    clf = LogisticRegression(random_state=0).fit(scaler.transform(X_train), y_train)
     
-    # Treino
-    clf = LogisticRegression(random_state=0, C=1.0)
-    clf.fit(X_train, y_train)
+    # Mapping
+    W_pad = np.zeros((4,4)); W_pad[:, :3] = clf.coef_.T 
+    B_pad = np.zeros(4); B_pad[:3] = clf.intercept_
     
-    # Adaptação para NPU 4x4
-    # Pesos (Features x Classes) -> (4, 3) -> Pad para (4, 4)
-    # A NPU espera W[Row][Col]. Transpomos clf.coef_ (3,4) -> (4,3)
-    weights_pad = np.zeros((4,4))
-    weights_core = clf.coef_.T 
-    weights_pad[:, :3] = weights_core 
+    # Quantization
+    max_val = max(np.max(np.abs(W_pad)), np.max(np.abs(X_test_scaled)))
+    scale = 127.0 / max_val
+    W_int = np.round(W_pad * scale).astype(int)
+    X_int = np.round(X_test_scaled * scale).astype(int)
+    B_int = np.round(B_pad * scale * scale).astype(int)
     
-    bias_pad = np.zeros(4)
-    bias_pad[:3] = clf.intercept_
+    # Auto-Calibration
+    max_acc_theor = (127 * 127 * 4) + np.max(np.abs(B_int))
+    target_factor = 127.0 / max_acc_theor
+    best_shift = 16
+    best_mult = int(round(target_factor * (1 << best_shift)))
+    if best_mult == 0: best_mult = 1
     
-    # Quantização
-    max_w = np.max(np.abs(weights_pad))
-    max_x = np.max(np.abs(X_test))
-    scale_w = max_w / 127.0 if max_w > 0 else 1.0
-    scale_x = max_x / 127.0 if max_x > 0 else 1.0
-    
-    W_int = quantize_matrix(weights_pad, scale_w)
-    B_int = quantize_bias(bias_pad, scale_w, scale_x)
-    X_test_int = quantize_matrix(X_test, scale_x)
-    
-    # Calibração PPU
-    max_acc_val = (127 * 127 * ROWS) + np.max(np.abs(B_int))
-    ppu_mult = 120 
-    target_ratio = (max_acc_val * ppu_mult) / 127.0
-    ppu_shift = int(math.ceil(math.log2(target_ratio))) if target_ratio > 1 else 0
-    if ppu_shift > 31: ppu_shift = 31
-    
-    log.info(f"Parâmetros: Mult={ppu_mult}, Shift={ppu_shift}, ScaleW={scale_w:.4f}, ScaleX={scale_x:.4f}")
-    return W_int, B_int, X_test_int, y_test, ppu_mult, ppu_shift
+    log_info(f"Auto-Quantização: MaxAcc={max_acc_theor}, Mult={best_mult}, Shift={best_shift}")
+    return W_int, B_int, X_int, y_test, best_mult, best_shift
 
 # ==============================================================================
-# MAIN TEST LOOP
+# MAIN
 # ==============================================================================
-
 def main():
-    log.info(f"{Colors.BOLD}>>> Iniciando Suite de Testes HIL - IRIS (Systolic Mode){Colors.RESET}")
-    driver = UART_Driver(SERIAL_PORT, BAUD_RATE)
-    
-    # 1. Preparação
-    data = get_iris_model()
-    if data is None: return
-    W_int, B_int, X_test, y_true, ppu_mult, ppu_shift = data
 
-    # 2. Configuração Estática da NPU (PPU, Bias)
-    log.info("Configurando NPU (PPU, Bias)...")
-    driver.write(ADDR_CSR_CTRL, 0)
-    driver.write(ADDR_CSR_QUANT, (0 << 8) | (ppu_shift & 0x1F))
-    driver.write(ADDR_CSR_MULT, ppu_mult)
+    print('\n')
+    print(f"\n{Colors.CYAN}  ██╗██████╗ ██╗███████╗    ██╗  ██╗██╗██╗     {Colors.RESET}")
+    print(f"{Colors.CYAN}  ██║██╔══██╗██║██╔════╝    ██║  ██║██║██║     {Colors.RESET}")
+    print(f"{Colors.CYAN}  ██║██████╔╝██║███████╗    ███████║██║██║     {Colors.RESET}")
+    print(f"{Colors.CYAN}  ██║██╔══██╗██║╚════██║    ██╔══██║██║██║     {Colors.RESET}")
+    print(f"{Colors.CYAN}  ██║██║  ██║██║███████║    ██║  ██║██║███████╗{Colors.RESET}")
+    print(f"{Colors.CYAN}  ╚═╝╚═╝  ╚═╝╚═╝╚══════╝    ╚═╝  ╚═╝╚═╝╚══════╝{Colors.RESET}")
+    print('\n')
+    
+    driver = NPUDriver(SERIAL_PORT, BAUD_RATE)
+    
+    try:
+        W_int, B_int, X_test, y_true, q_mult, q_shift = get_quantized_model()
+        K_DIM = 4
 
-    # Carregar Bias (permanece constante para todo o batch de inferência)
-    for i, b in enumerate(B_int):
-        driver.write(ADDR_BIAS_BASE + (i*4), b)
+        log_header("CARGA DE PARÂMETROS")
+        driver.write_reg(REG_QUANT_MULT, q_mult)
+        driver.write_reg(REG_QUANT_CFG, q_shift)
+        for i, b in enumerate(B_int): driver.write_reg(REG_BIAS_BASE + i*4, int(b))
+        log_success("Pesos e Bias carregados.")
 
-    # 3. Inferência Loop
-    log.info(f"Iniciando Inferência em {len(X_test)} amostras...")
-    
-    correct_count = 0
-    total_time = 0
-    
-    # Cabeçalho da Tabela
-    log.info(f"{Colors.DIM}" + "-" * 65 + f"{Colors.RESET}")
-    header = f"{'ID':<5} | {'REAL':<5} | {'PRED':<5} | {'SCORES (Cls 0,1,2)':<25} | {'STATUS'}"
-    log.info(f"{Colors.BOLD}{header}{Colors.RESET}")
-    log.info(f"{Colors.DIM}" + "-" * 65 + f"{Colors.RESET}")
-    
-    for idx, (x_vec, y_real) in enumerate(zip(X_test, y_true)):
-        start_time = time.time()
+        log_header(f"VALIDAÇÃO CRUZADA HW/SW ({len(X_test)} Amostras)")
         
-        # A. Limpar Acumuladores (Pulso de Clear)
-        driver.write(ADDR_CSR_CTRL, CTRL_ACC_CLEAR)
-        driver.write(ADDR_CSR_CTRL, 0) # Volta para IDLE
+        # Cabeçalho da tabela perfeitamente alinhado
+        print(f"{Colors.DIM}{'-'*85}{Colors.RESET}")
+        print(f" {'ID':<4} | {'REAL':<4} | {'HW':<4} | {'SW':<4} | {'SCORES HW (Cls 0,1,2)':<22} | {'BIT-OK':<7} | {'ACC-OK'}")
+        print(f"{Colors.DIM}{'-'*85}{Colors.RESET}")
+
+        stats = {'hw_match': 0, 'acc': 0, 'total': len(X_test)}
+        total_inf_time = 0
         
-        # B. Alimentação Sistólica (Input + Pesos)
-        # Iteramos sobre a dimensão comum K (Features = 4)
-        for k in range(4):
-            # Input Vector: x_vec[k] mapeado para Linha 0 da matriz A.
-            # O restante da coluna é 0.
-            val_input = x_vec[k]
-            vec_a = [val_input, 0, 0, 0]
+        for idx, (x_vec, y_real) in enumerate(zip(X_test, y_true)):
+            t_start = time.time()
             
-            # Weight Matrix: Linha k da matriz de pesos
-            # W_int[k, :] contem os pesos das 4 colunas (classes) para a feature k
-            vec_w = W_int[k, :]
+            # --- HARDWARE INFERENCE ---
+            driver.write_reg(REG_CMD, CMD_RST_DMA_PTRS | CMD_RST_WR_W | CMD_RST_WR_I)
+            for k in range(K_DIM):
+                driver.write_reg(REG_WRITE_A, driver.pack_int8([x_vec[k], 0, 0, 0]))
+                driver.write_reg(REG_WRITE_W, driver.pack_int8(W_int[k]))
             
-            # Envia via UART
-            # Nota: A ordem exata (A depois W ou W depois A) depende do buffer,
-            # mas geralmente não importa desde que ambos cheguem antes do clock de processamento.
-            driver.write(ADDR_WRITE_A, pack_vec(vec_a))
-            driver.write(ADDR_WRITE_W, pack_vec(vec_w))
+            driver.write_reg(REG_CONFIG, K_DIM)
+            driver.write_reg(REG_CMD, CMD_START | CMD_RST_W_RD | CMD_RST_I_RD | CMD_ACC_CLEAR)
+            driver.wait_done()
             
-            # Pequeno delay se necessário para garantir que o HW não perca pacotes
-            # Com baud rate 921600, a transmissão é o gargalo, então o HW deve estar sobrando.
-        
-        # C. Dump e Leitura
-        driver.write(ADDR_CSR_CTRL, CTRL_ACC_DUMP)
-        
-        # A NPU cospe 4 linhas de resultados (FIFO output).
-        # Precisamos ler 4 vezes.
-        # A Linha 0 (onde colocamos o input) é a última a sair (ordem Row 3->0 normalmente).
-        raw_results = []
-        for _ in range(4):
-            # Polling do bit Valid no Status
-            while True:
-                status = driver.read(ADDR_CSR_STATUS)
-                if status & STATUS_VALID: break
-                # timeout implícito no driver.read
+            hw_out_all = driver.read_results()
+            t_end = time.time()
+            total_inf_time += (t_end - t_start)
+
+            hw_scores = hw_out_all[0][:3]
             
-            val = driver.read(ADDR_READ_OUT)
-            raw_results.append(unpack_vec(val))
+            # --- SOFTWARE INFERENCE ---
+            sw_scores_full = compute_golden(x_vec, W_int, B_int, q_mult, q_shift)
+            sw_scores = sw_scores_full[:3]
+
+            # --- CHECK ---
+            hw_pred = np.argmax(hw_scores)
+            sw_pred = np.argmax(sw_scores)
+            
+            hw_match = (list(hw_scores) == list(sw_scores))
+            is_correct = (hw_pred == y_real)
+            
+            if hw_match: stats['hw_match'] += 1
+            if is_correct: stats['acc'] += 1
+            
+            # Formatação 
+            hw_str = "MATCH" if hw_match else "FAIL"
+            hw_col = Colors.GREEN if hw_match else Colors.RED
+            
+            acc_str = "OK" if is_correct else "ERR"
+            acc_col = Colors.GREEN if is_correct else Colors.RED
+            
+            # Scores formatados 
+            sc_fmt = str(list(hw_scores))
+            
+            print(f" {idx:<4} | {y_real:<4} | {Colors.BOLD}{hw_pred:<4}{Colors.RESET} | {sw_pred:<4} | {sc_fmt:<22} | {hw_col}{hw_str:<7}{Colors.RESET} | {acc_col}{acc_str}{Colors.RESET}")
+
+        # RELATÓRIO FINAL 
+        acc_pct = (stats['acc'] / stats['total']) * 100
+        hw_pct  = (stats['hw_match'] / stats['total']) * 100
+        avg_lat = (total_inf_time / stats['total']) * 1000
         
-        driver.write(ADDR_CSR_CTRL, 0) # Limpa CTRL
+        print(f"\n{Colors.YELLOW}{'='*40}")
+        print(f" RELATÓRIO FINAL DE PERFORMANCE")
+        print(f"{'='*40}{Colors.RESET}")
+        print(f" Amostras Processadas : {stats['total']}")
+        print(f" Validação Bit-Exact  : {Colors.BOLD}{hw_pct:>6.2f}%{Colors.RESET}")
+        print(f" Acurácia do Modelo   : {Colors.BOLD}{acc_pct:>6.2f}%{Colors.RESET}")
+        print(f" Latência Média (HIL) : {Colors.CYAN}{avg_lat:>6.2f} ms{Colors.RESET}")
+        print(f"{Colors.YELLOW}{'='*40}{Colors.RESET}")
         
-        # Analisa Tempo
-        elapsed = time.time() - start_time
-        total_time += elapsed
-        
-        # O resultado válido está na posição correspondente à linha onde injetamos o input.
-        # Injetamos em Row 0 -> Resultado em results[3] (supondo ordem inversa de dump)
-        scores = raw_results[3]
-        
-        # Classificação (Argmax dos 3 primeiros scores)
-        pred = np.argmax(scores[:3])
-        is_correct = (pred == y_real)
-        
-        if is_correct:
-            correct_count += 1
-            status_str = f"{Colors.GREEN}OK{Colors.RESET}"
-            row_color = ""
-            log_level = logging.INFO
+        print('\n')
+        if hw_pct == 100.0:
+            log_success("Hardware Aprovado.")
         else:
-            status_str = f"{Colors.RED}FAIL{Colors.RESET}"
-            row_color = Colors.YELLOW
-            log_level = logging.WARNING
-            
-        scores_str = f"[{scores[0]:>3}, {scores[1]:>3}, {scores[2]:>3}]"
-        
-        # Log da linha
-        row_str = (f"{row_color}{idx+1:<5}{Colors.RESET} | "
-                   f"{y_real:<5} | "
-                   f"{row_color}{pred:<5}{Colors.RESET} | "
-                   f"{scores_str:<25} | "
-                   f"{status_str}")
-        log.log(log_level, row_str)
+            log_error("Divergência HW/SW detectada!")
 
-    # 4. Relatório Final
-    acc = (correct_count / len(X_test)) * 100
-    avg_time = (total_time / len(X_test)) * 1000 # em ms
-    final_color = Colors.GREEN if acc >= 90.0 else Colors.RED
-    
-    log.info(f"{Colors.DIM}" + "="*65 + f"{Colors.RESET}")
-    log.info(f"{Colors.BOLD}RELATÓRIO FINAL DE VALIDAÇÃO (IRIS){Colors.RESET}")
-    log.info(f"Total Amostras  : {len(X_test)}")
-    log.info(f"Acertos         : {correct_count}")
-    log.info(f"Erros           : {len(X_test) - correct_count}")
-    log.info(f"Acurácia        : {final_color}{acc:.2f}%{Colors.RESET}")
-    log.info("-" * 30)
-    log.info(f"Tempo Médio/Img : {avg_time:.2f} ms") 
-    log.info(f"{Colors.DIM}" + "="*65 + f"{Colors.RESET}")
-    
-    driver.close()
+    except KeyboardInterrupt:
+        print('\n')
+        print("🛑 Cancelado pelo usuário!")
+    finally:
+        driver.close()
 
 if __name__ == "__main__":
     main()
