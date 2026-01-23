@@ -9,7 +9,6 @@ VHDL_SRCS += $(RTL_DIR)/common/ram_dual.vhd
 VHDL_SRCS += $(RTL_DIR)/core/mac_pe.vhd
 VHDL_SRCS += $(RTL_DIR)/core/systolic_array.vhd
 VHDL_SRCS += $(RTL_DIR)/core/input_buffer.vhd
-VHDL_SRCS += $(RTL_DIR)/core/output_buffer.vhd
 VHDL_SRCS += $(RTL_DIR)/core/npu_core.vhd
 VHDL_SRCS += $(RTL_DIR)/ppu/post_process.vhd
 VHDL_SRCS += $(RTL_DIR)/npu_controller.vhd
