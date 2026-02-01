@@ -144,15 +144,43 @@ architecture rtl of npu_top is
     signal s_ctl_core_vld        : std_logic := '0';
     signal s_fifo_ready_feedback : std_logic := '1';
 
+    -- Sinal Auxiliar para Edge Detector --------------------------------------------------------------------
+
+    signal r_done_dly            : std_logic := '0';
+
     ---------------------------------------------------------------------------------------------------------
 
 begin
 
-    ---------------------------------------------------------------------------------------------------------
-    -- Conexão oda Interrupção
-    ---------------------------------------------------------------------------------------------------------
+    -- ========================================================================
+    -- DETECTOR DE BORDA DA INTERRUPÇÃO
+    -- ========================================================================
+    -- Gera um pulso de 1 ciclo quando 's_sts_done' transita de 0 para 1.
+    
+    process(clk)
+    begin
 
-    irq_done_o <= s_sts_done;
+        if rising_edge(clk) then
+
+            if rst_n = '0' then
+
+                r_done_dly <= '0';
+                irq_done_o <= '0';
+
+            else
+
+                r_done_dly <= s_sts_done; -- Guarda estado anterior
+
+                -- Rising Edge Detection
+                if (s_sts_done = '1' and r_done_dly = '0') then
+                    irq_done_o <= '1'; -- Pulso!
+                else
+                    irq_done_o <= '0';
+                end if;
+                
+            end if;
+        end if;
+    end process;
 
     ---------------------------------------------------------------------------------------------------------
     -- Instância: Register File & MMIO
