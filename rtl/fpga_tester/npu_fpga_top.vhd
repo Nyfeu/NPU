@@ -153,7 +153,11 @@ begin
             we_i    => s_npu_we,
             addr_i  => s_npu_addr,
             data_i  => s_npu_wdata,
-            data_o  => s_npu_rdata
+            data_o  => s_npu_rdata,
+
+            -- Interface IRQ
+            irq_done_o => open
+            
         );
 
 end architecture; -- rtl
