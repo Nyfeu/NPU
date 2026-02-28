@@ -1,6 +1,9 @@
 # Ignora a pasta build
 build
 
+# Documentação
+site/
+
 # Ignora arquivos temporários do Python
 __pycache__/
 .venv
