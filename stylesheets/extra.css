@@ -1,6 +1,7 @@
-/* =========================================
+/* =============================================================================
    TRAVAR HEADER NO NOME DO PROJETO
-   ========================================= */
+   ============================================================================= */
+
 .md-header__topic:first-child {
     opacity: 1 !important;
     visibility: visible !important;
@@ -12,9 +13,10 @@
 }
 
 
-/* =========================================
+/* =============================================================================
    AJUSTES DE LAYOUT
-   ========================================= */
+   ============================================================================= */
+
 .md-grid { 
     max-width: 90rem;
 }
@@ -25,22 +27,23 @@
 }
 
 
-/* =========================================
+/* =============================================================================
    SIDEBARS (DESKTOP)
-   ========================================= */
+   ============================================================================= */
+
 @media screen and (min-width: 76.25em) {
 
     /* 1. Pinta a coluna inteira e força ela a ir até o final da tela */
+
     .md-sidebar--primary {
         background-color: #181a1f !important; 
         --md-default-bg-color: #181a1f; 
         border-right: 1px solid var(--md-default-bg-color--lighter);
-        
-        /* O SEGREDO AQUI: 100vh (tamanho da tela) menos 4.8rem (tamanho do header do MkDocs) */
         height: calc(100vh - 4.8rem) !important; 
     }
 
     /* 2. Mantém o miolo transparente para herdar o fundo sem quebrar o título */
+
     .md-sidebar--primary .md-sidebar__scrollwrap,
     .md-sidebar--primary .md-nav {
         background-color: transparent !important;
@@ -51,6 +54,7 @@
     }
 
     /* Sidebar direita permanece com a cor padrão */
+
     .md-sidebar--secondary {
         border-left: 1px solid var(--md-default-bg-color--lighter);
     }
@@ -58,12 +62,14 @@
     .md-sidebar--secondary .md-sidebar__scrollwrap {
         padding-left: 1.5rem;
     }
+
 }
 
 
-/* =========================================
+/* =============================================================================
    DIVISÓRIAS DO MENU ESQUERDO
-   ========================================= */
+   ============================================================================= */
+
 .md-nav--primary > .md-nav__list > .md-nav__item--nested {
     border-bottom: 1px solid var(--md-default-bg-color--lighter);
     padding-bottom: 0.75rem;
@@ -72,4 +78,29 @@
 
 .md-nav--primary > .md-nav__list > .md-nav__item--nested:last-child {
     border-bottom: none;
+}
+
+/* =============================================================================
+   MOVER ÍCONE DO GITHUB PARA A ESQUERDA DA BUSCA E REMOVER GAP
+   ============================================================================= */
+
+.md-header__source {
+    order: 1 !important;
+    width: 3rem !important; 
+    max-width: none !important; 
+    margin-right: 0.5rem !important; 
+}
+
+/* Garante que a barra de pesquisa e o botão da lupa fiquem por último (à direita) */
+.md-search,
+.md-header__button[for="__search"] {
+    order: 2 !important;
+}
+
+/* =============================================================================
+   OCULTAR ESTATÍSTICAS DO REPOSITÓRIO (STARS/FORKS)
+   ============================================================================= */
+
+.md-source__facts {
+    display: none !important;
 }
