@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://Nyfeu.github.io/NPU/hardware/overview/">
+        <link rel="canonical" href="https://Nyfeu.github.io/NPU/software/hil/">
       
       
-        <link rel="prev" href="../../intro/setup/">
+        <link rel="prev" href="../api_programming/">
       
       
-        <link rel="next" href="../../software/api_programming/">
+        <link rel="next" href="../../dev/simulation/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Visão Geral do Top-Level - Neural Processing Unit - NPU</title>
+        <title>Hardware-in-the-Loop (HIL) - Neural Processing Unit - NPU</title>
       
     
     
@@ -79,6 +79,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#hardware-in-the-loop-hil" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -109,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Visão Geral do Top-Level
+              Hardware-in-the-Loop (HIL)
             
           </span>
         </div>
@@ -226,13 +231,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../hardware/overview/" class="md-tabs__link">
           
   
   
@@ -248,11 +251,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../software/api_programming/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../api_programming/" class="md-tabs__link">
           
   
   
@@ -466,29 +471,24 @@
       
   
   
-    
   
   
-  
     
     
     
     
       
-        
-        
-      
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
             
   
   
@@ -506,7 +506,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -521,17 +521,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../hardware/overview/" class="md-nav__link">
         
   
   
@@ -547,7 +540,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -560,7 +552,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../systolic_array.md" class="md-nav__link">
+      <a href="../../hardware/systolic_array.md" class="md-nav__link">
         
   
   
@@ -588,7 +580,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ppu.md" class="md-nav__link">
+      <a href="../../hardware/ppu.md" class="md-nav__link">
         
   
   
@@ -616,7 +608,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../controller.md" class="md-nav__link">
+      <a href="../../hardware/controller.md" class="md-nav__link">
         
   
   
@@ -644,7 +636,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../datapath.md" class="md-nav__link">
+      <a href="../../hardware/datapath.md" class="md-nav__link">
         
   
   
@@ -672,7 +664,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../registers.md" class="md-nav__link">
+      <a href="../../hardware/registers.md" class="md-nav__link">
         
   
   
@@ -704,24 +696,29 @@
       
   
   
+    
   
   
+  
     
     
     
     
-      
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -739,7 +736,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -757,7 +754,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../software/api_programming/" class="md-nav__link">
+      <a href="../api_programming/" class="md-nav__link">
         
   
   
@@ -782,10 +779,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../software/hil/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hardware-in-the-Loop (HIL)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -801,6 +825,87 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#arquitetura-do-driver-em-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arquitetura do Driver em Python
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Arquitetura do Driver em Python">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-quantizacao-fp32-para-int8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Quantização (FP32 para INT8)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-protocolo-mmio-sobre-uart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Protocolo MMIO sobre UART
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-execucao-da-inferencia" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Execução da Inferência
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#como-rodar-o-hil" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Como rodar o HIL
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -813,7 +918,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../software/soc_integration.md" class="md-nav__link">
+      <a href="../soc_integration.md" class="md-nav__link">
         
   
   
@@ -1112,6 +1217,77 @@
   
   
   
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#arquitetura-do-driver-em-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arquitetura do Driver em Python
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Arquitetura do Driver em Python">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-quantizacao-fp32-para-int8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Quantização (FP32 para INT8)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-protocolo-mmio-sobre-uart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Protocolo MMIO sobre UART
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-execucao-da-inferencia" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Execução da Inferência
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#como-rodar-o-hil" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Como rodar o HIL
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -1131,9 +1307,51 @@
   
 
 
-  <h1>Visão Geral do Top-Level</h1>
-
-
+<h1 id="hardware-in-the-loop-hil">Hardware-in-the-Loop (HIL)</h1>
+<p>O conceito de <strong>Hardware-in-the-Loop (HIL)</strong> permite que validemos a NPU em seu ambiente real (a FPGA) enquanto ainda mantemos o controle do fluxo de dados através do PC (Host). </p>
+<p><img alt="NPU Hardware-in-the-Loop" src="../../assets/HIL_NPU.svg" /></p>
+<div class="admonition note">
+<p class="admonition-title">Protocolo de Comunicação Serial</p>
+<p>A interface entre o PC e a FPGA é feita através de uma conexão <strong>UART de alta velocidade (921.600 bps)</strong>. O módulo UART Controller no hardware em FPGA é responsável por comunicar os pacotes que são comandos a serem processados pela NPU ou resultados obtidos por uma operação.</p>
+</div>
+<h2 id="arquitetura-do-driver-em-python">Arquitetura do Driver em Python</h2>
+<p>Os scripts na pasta <code>sw/</code> (como o <code>fpga_driver.py</code>) atuam como o "cérebro" do sistema. Eles executam a seguinte lógica sequencial:</p>
+<h3 id="1-quantizacao-fp32-para-int8">1. Quantização (<code>FP32</code> para <code>INT8</code>)</h3>
+<p>A NPU não processa ponto flutuante para economizar área de silício. O script em Python pega os pesos de uma rede treinada (Keras/PyTorch) e aplica uma conversão linear afim para <strong>INT8</strong> (valore <strong>entre -128 e 127</strong>). Os parâmetros de <strong>escala</strong> (<em>Scale</em>) e <strong>ponto zero</strong> (<em>Zero Point</em>) são extraídos e enviados para a NPU.</p>
+<h3 id="2-protocolo-mmio-sobre-uart">2. Protocolo MMIO sobre UART</h3>
+<p>O driver não manda bytes aleatórios. Ele empacota os dados endereçando registradores específicos da NPU (Memory-Mapped I/O).</p>
+<ul>
+<li>
+<p>Para enviar pesos, o Python manda os bytes empacotados apontando para o endereço <code>REG_WRITE_W</code> (<code>0x10</code>).</p>
+</li>
+<li>
+<p>Para enviar os dados da imagem (ativações), ele aponta para <code>REG_WRITE_A</code> (<code>0x14</code>).</p>
+</li>
+</ul>
+<h3 id="3-execucao-da-inferencia">3. Execução da Inferência</h3>
+<p>Após carregar os pesos:</p>
+<ol>
+<li>
+<p>O Python escreve a configuração de execução no <code>CSR_CONFIG</code> (<code>0x08</code>).</p>
+</li>
+<li>
+<p>Envia um pulso de Start no <code>CSR_CMD</code> (<code>0x04</code>).</p>
+</li>
+<li>
+<p>Fica fazendo <em>Polling</em> (checando repetidamente) o registrador <code>CSR_STATUS</code> (<code>0x00</code>) até que a flag de <code>DONE</code> retorne verdadeira.</p>
+</li>
+<li>
+<p>Lê os resultados finais no registrador <code>REG_READ_OUT</code> (<code>0x18</code>).</p>
+</li>
+</ol>
+<h2 id="como-rodar-o-hil">Como rodar o HIL</h2>
+<p>Com a FPGA programada e conectada na porta USB do seu PC, você pode executar as aplicações de validação real:</p>
+<div class="highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Treina um modelo MNIST, quantiza, envia para a FPGA e mede a acurácia</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>make<span class="w"> </span>hil_mnist
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Executa o mesmo processo para o dataset Iris</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>make<span class="w"> </span>hil_iris
+</span></code></pre></div>
 
 
 
@@ -1154,7 +1372,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="February 28, 2026 23:01:05 UTC">February 28, 2026 23:01:05</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 1, 2026 05:26:20 UTC">March 1, 2026 05:26:20</span>
   </span>
 
     
@@ -1192,7 +1410,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../../intro/setup/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Requisitos e Setup">
+          <a href="../api_programming/" class="md-footer__link md-footer__link--prev" aria-label="Previous: API de Programação">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1202,20 +1420,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                Requisitos e Setup
+                API de Programação
               </div>
             </div>
           </a>
         
         
           
-          <a href="../../software/api_programming/" class="md-footer__link md-footer__link--next" aria-label="Next: API de Programação">
+          <a href="../../dev/simulation/" class="md-footer__link md-footer__link--next" aria-label="Next: Ambiente de Testes (Cocotb)">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                API de Programação
+                Ambiente de Testes (Cocotb)
               </div>
             </div>
             <div class="md-footer__button md-icon">

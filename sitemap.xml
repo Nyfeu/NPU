@@ -13,6 +13,14 @@
          <lastmod>2026-03-01</lastmod>
     </url>
     <url>
+         <loc>https://Nyfeu.github.io/NPU/dev/fpga_build/</loc>
+         <lastmod>2026-03-01</lastmod>
+    </url>
+    <url>
+         <loc>https://Nyfeu.github.io/NPU/dev/simulation/</loc>
+         <lastmod>2026-03-01</lastmod>
+    </url>
+    <url>
          <loc>https://Nyfeu.github.io/NPU/hardware/overview/</loc>
          <lastmod>2026-03-01</lastmod>
     </url>
@@ -21,7 +29,11 @@
          <lastmod>2026-03-01</lastmod>
     </url>
     <url>
-         <loc>https://Nyfeu.github.io/NPU/software/NPU_PROGRAMMING/</loc>
+         <loc>https://Nyfeu.github.io/NPU/software/api_programming/</loc>
+         <lastmod>2026-03-01</lastmod>
+    </url>
+    <url>
+         <loc>https://Nyfeu.github.io/NPU/software/hil/</loc>
          <lastmod>2026-03-01</lastmod>
     </url>
 </urlset>

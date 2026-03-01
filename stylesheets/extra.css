@@ -22,3 +22,63 @@
     max-width: none !important; 
     margin-right: 0.5rem !important; 
 }
+
+/* ===== TABELAS MAIS PROFISSIONAIS ===== */
+
+.md-typeset table {
+    width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 0.9rem;
+}
+
+/* Cabeçalho */
+.md-typeset thead {
+    background-color: rgba(255,255,255,0.05);
+}
+
+.md-typeset th {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+}
+
+/* Linhas */
+.md-typeset tbody tr:nth-child(even) {
+    background-color: rgba(255,255,255,0.02);
+}
+
+/* Hover */
+.md-typeset tbody tr:hover {
+    background-color: rgba(100, 108, 255, 0.08);
+}
+
+/* Bordas suaves */
+.md-typeset th,
+.md-typeset td {
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.md-typeset table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+.md-typeset table {
+    background-color: rgba(255,255,255,0.02);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    border-radius: 12px;
+}
+
+/* ===== Destaque melhor para inline code ===== */
+
+.md-typeset code {
+    background-color: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #ffffff;
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+}
+
