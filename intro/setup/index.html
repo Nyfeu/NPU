@@ -10,11 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://Nyfeu.github.io/NPU/apps/IRIS/">
+        <link rel="canonical" href="https://Nyfeu.github.io/NPU/intro/setup/">
       
       
-        <link rel="prev" href="../MNIST/">
+        <link rel="prev" href="../..">
       
+      
+        <link rel="next" href="../../hardware/overview/">
       
       
         
@@ -25,7 +27,7 @@
     
     
       
-        <title>Classificação IRIS - Neural Processing Unit - NPU</title>
+        <title>Requisitos e Setup - Neural Processing Unit - NPU</title>
       
     
     
@@ -78,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#documentacao-do-dataset-iris" class="md-skip">
+        <a href="#requisitos-e-setup" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Classificação IRIS
+              Requisitos e Setup
             
           </span>
         </div>
@@ -209,10 +211,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../.." class="md-tabs__link">
           
   
@@ -289,13 +293,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../MNIST/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../apps/MNIST/" class="md-tabs__link">
           
   
   
@@ -356,24 +358,29 @@
       
   
   
+    
   
   
+  
     
     
     
     
-      
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" checked>
         
           
-          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="">
             
   
   
@@ -391,7 +398,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_1">
             <span class="md-nav__icon md-icon"></span>
             
@@ -434,10 +441,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../intro/setup/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Requisitos e Setup
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -453,6 +487,76 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#automacao-via-makefile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automação via Makefile
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Automação via Makefile">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#limpeza-do-projeto" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limpeza do Projeto
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#simulacao-com-cocotb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Simulação com Cocotb
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#atalhos-de-simulacao-prontos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Atalhos de Simulação Prontos
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -976,29 +1080,24 @@
       
   
   
-    
   
   
-  
     
     
     
     
       
-        
-        
-      
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
             
   
   
@@ -1016,7 +1115,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1034,7 +1133,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../MNIST/" class="md-nav__link">
+      <a href="../../apps/MNIST/" class="md-nav__link">
         
   
   
@@ -1059,37 +1158,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Classificação IRIS
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../apps/IRIS/" class="md-nav__link">
         
   
   
@@ -1105,165 +1177,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#1-visao-geral" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1. Visão Geral
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#2-estrutura-dos-dados" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. Estrutura dos Dados
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="2. Estrutura dos Dados">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#entradas-features" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Entradas (Features)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#saidas-classes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Saídas (Classes)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3-mapeamento-no-hardware" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. Mapeamento no Hardware
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="3. Mapeamento no Hardware">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#matriz-de-pesos-weights" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Matriz de Pesos (Weights)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#quantizacao-int8" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quantização (Int8)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#calibracao-da-ppu-o-segredo-da-acuracia" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Calibração da PPU (O Segredo da Acurácia)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Calibração da PPU (O Segredo da Acurácia)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#problema-saturacao" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Problema: Saturação
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#solucao-re-escalonamento-rescaling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Solução: Re-escalonamento (Rescaling)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#4-exemplo-de-inferencia" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. Exemplo de Inferência
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1276,7 +1189,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../MLP.md" class="md-nav__link">
+      <a href="../../apps/MLP.md" class="md-nav__link">
         
   
   
@@ -1331,33 +1244,22 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-visao-geral" class="md-nav__link">
+  <a href="#automacao-via-makefile" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Visão Geral
+        Automação via Makefile
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#2-estrutura-dos-dados" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. Estrutura dos Dados
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="2. Estrutura dos Dados">
+    <nav class="md-nav" aria-label="Automação via Makefile">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#entradas-features" class="md-nav__link">
+  <a href="#limpeza-do-projeto" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Entradas (Features)
+        Limpeza do Projeto
       
     </span>
   </a>
@@ -1365,10 +1267,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#saidas-classes" class="md-nav__link">
+  <a href="#simulacao-com-cocotb" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Saídas (Classes)
+        Simulação com Cocotb
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#atalhos-de-simulacao-prontos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Atalhos de Simulação Prontos
       
     </span>
   </a>
@@ -1377,95 +1290,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3-mapeamento-no-hardware" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. Mapeamento no Hardware
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="3. Mapeamento no Hardware">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#matriz-de-pesos-weights" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Matriz de Pesos (Weights)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#quantizacao-int8" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quantização (Int8)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#calibracao-da-ppu-o-segredo-da-acuracia" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Calibração da PPU (O Segredo da Acurácia)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Calibração da PPU (O Segredo da Acurácia)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#problema-saturacao" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Problema: Saturação
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#solucao-re-escalonamento-rescaling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Solução: Re-escalonamento (Rescaling)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#4-exemplo-de-inferencia" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. Exemplo de Inferência
-      
-    </span>
-  </a>
   
 </li>
       
@@ -1489,141 +1313,39 @@
   
 
 
-<h1 id="documentacao-do-dataset-iris">🌸 Documentação do Dataset Iris</h1>
-<h2 id="1-visao-geral">1. Visão Geral</h2>
-<p>O <strong>Iris Dataset</strong> é o conjunto de dados utilizado para validar a inferência real na NPU. Ele consiste na classificação de flores em 3 espécies baseando-se em 4 medidas físicas.</p>
-<p>Este dataset foi escolhido porque suas dimensões (4 entradas) casam perfeitamente com a arquitetura física da NPU (Matriz Sistólica 4x4), permitindo validação sem necessidade de <em>tiling</em>.</p>
-<h2 id="2-estrutura-dos-dados">2. Estrutura dos Dados</h2>
-<h3 id="entradas-features">Entradas (Features)</h3>
-<p>Cada amostra enviada para a NPU (<code>valid_in</code>) é um vetor de 4 bytes (Int8), representando:</p>
-<table>
-<thead>
-<tr>
-<th style="text-align: left;">Índice</th>
-<th style="text-align: left;">Feature (Característica)</th>
-<th style="text-align: left;">Unidade Original</th>
-<th style="text-align: left;">Representação NPU</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;"><strong>0</strong></td>
-<td style="text-align: left;">Comprimento da Sépala</td>
-<td style="text-align: left;">cm</td>
-<td style="text-align: left;">Int8 (Quantizado)</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>1</strong></td>
-<td style="text-align: left;">Largura da Sépala</td>
-<td style="text-align: left;">cm</td>
-<td style="text-align: left;">Int8 (Quantizado)</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>2</strong></td>
-<td style="text-align: left;">Comprimento da Pétala</td>
-<td style="text-align: left;">cm</td>
-<td style="text-align: left;">Int8 (Quantizado)</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>3</strong></td>
-<td style="text-align: left;">Largura da Pétala</td>
-<td style="text-align: left;">cm</td>
-<td style="text-align: left;">Int8 (Quantizado)</td>
-</tr>
-</tbody>
-</table>
-<h3 id="saidas-classes">Saídas (Classes)</h3>
-<p>A NPU retorna um vetor de 4 bytes. Os 3 primeiros correspondem aos <em>scores</em> (logits) de cada classe:</p>
-<table>
-<thead>
-<tr>
-<th style="text-align: left;">Índice (Coluna)</th>
-<th style="text-align: left;">Espécie (Classe)</th>
-<th style="text-align: left;">Característica Principal</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;"><strong>0</strong></td>
-<td style="text-align: left;"><strong>Iris Setosa</strong></td>
-<td style="text-align: left;">Pétalas pequenas e largas. Fácil de separar.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>1</strong></td>
-<td style="text-align: left;"><strong>Iris Versicolor</strong></td>
-<td style="text-align: left;">Tamanho médio. Confunde-se com a Virginica.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>2</strong></td>
-<td style="text-align: left;"><strong>Iris Virginica</strong></td>
-<td style="text-align: left;">Pétalas grandes e longas.</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>3</strong></td>
-<td style="text-align: left;"><em>(Padding)</em></td>
-<td style="text-align: left;">Não utilizado (valor ignorado).</td>
-</tr>
-</tbody>
-</table>
-<h2 id="3-mapeamento-no-hardware">3. Mapeamento no Hardware</h2>
-<h3 id="matriz-de-pesos-weights">Matriz de Pesos (Weights)</h3>
-<p>O modelo treinado gera uma matriz de pesos de dimensão <code>[4 entradas x 3 saídas]</code>.
-Na NPU 4x4, adicionamos uma coluna de zeros (padding) para completar a matriz <code>4x4</code>.</p>
+<h1 id="requisitos-e-setup">Requisitos e Setup</h1>
+<div class="admonition warning">
+<p class="admonition-title">Dependências do Sistema</p>
+<p>Para compilar e simular este projeto, instale as seguintes ferramentas e certifique-se de que elas estão no seu <code>PATH</code>:</p>
 <ul>
-<li><strong>Load Order:</strong> Os pesos são carregados via <code>ADDR_FIFO_W</code> (0x10).</li>
-<li><strong>Layout:</strong>
-    <div class="highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>W[0,0] W[0,1] W[0,2] 0
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>W[1,0] W[1,1] W[1,2] 0
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>W[2,0] W[2,1] W[2,2] 0
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>W[3,0] W[3,1] W[3,2] 0
-</span></code></pre></div></li>
+<li><strong>GHDL</strong>: Simulador VHDL open-source.</li>
+<li><strong>GTKWave</strong>: Visualizador de formas de onda.</li>
+<li><strong>COCOTB</strong>: Framework Python para testbenches baseados em corrotinas.</li>
+<li><strong>Python 3</strong>: Necessário para rodar o Cocotb e os drivers de host.</li>
+<li><strong>Xilinx Vivado</strong>: Apenas se for realizar a síntese e gravação na FPGA.</li>
 </ul>
-<h3 id="quantizacao-int8">Quantização (Int8)</h3>
-<p>Como a NPU opera com inteiros de 8 bits, os valores reais (ex: 5.1 cm) são convertidos:</p>
-<ol>
-<li><strong>Escala:</strong> Encontramos o valor máximo absoluto no dataset de treino (ex: 7.9 cm).</li>
-<li><strong>Fator:</strong> <code>Scale = 7.9 / 127</code>.</li>
-<li><strong>Conversão:</strong> <code>Valor_Int8 = Valor_Float / Scale</code>.</li>
-</ol>
-<p>Isso garante que usamos toda a faixa dinâmica de -128 a +127.</p>
-<h3 id="calibracao-da-ppu-o-segredo-da-acuracia">Calibração da PPU (O Segredo da Acurácia)</h3>
-<p>A NPU opera internamente com acumuladores de 32 bits, mas a saída é limitada a 8 bits (Int8). Sem calibração, ocorre o fenômeno de <strong>saturação</strong> (<em>quantization saturation</em>), prejudicando a acurácia do modelo.</p>
-<h4 id="problema-saturacao">Problema: Saturação</h4>
-<p>Durante a inferência, a soma dos produtos (Pesos × Entradas) pode gerar valores muito altos, por exemplo <code>50.000</code>.</p>
-<p>Ao converter diretamente esse valor para Int8 (intervalo [-128, 127]), ocorre saturação:
-* <code>50.000</code> -&gt; vira <code>127</code> (clamp)
-* <code>48.000</code> -&gt; vira <code>127</code> (clamp)</p>
-<p>Apesar de <code>50.000</code> ser maior que <code>48.000</code>, ambos passam a ter <strong>exatamente a mesma representação</strong>.</p>
-<p>Com isso, o hardware perde a capacidade de diferenciar qual valor era realmente maior.<br />
-Na prática, o modelo entra em um regime de <strong>empate artificial</strong>, e a decisão final se assemelha a um chute aleatório — semelhante a uma questão de múltipla escolha em que duas alternativas parecem igualmente corretas.</p>
-<h4 id="solucao-re-escalonamento-rescaling">Solução: Re-escalonamento (Rescaling)</h4>
-<p>Configuramos a PPU para multiplicar e dividir o resultado acumulado <em>antes</em> de cortar para 8 bits, trazendo os valores para a faixa dinâmica correta (-128 a +127).</p>
-<p><strong>Configuração Utilizada no Teste:</strong>
-* <strong>Mult (0x08):</strong> <code>100</code> (Aumenta precisão antes da divisão)
-* <strong>Shift (0x04):</strong> <code>16</code> (Divide por <span class="arithmatex">\(2^{16} = 65536\)</span>)</p>
-<p><strong>Matemática Real:</strong>
-$<span class="arithmatex">\(Saída = \frac{Acumulador \times 100}{65536}\)</span>$</p>
-<p><strong>Exemplo Prático:</strong>
-Tomando o mesmo valor de <code>50.000</code> que antes saturava:
-$<span class="arithmatex">\(\frac{50.000 \times 100}{65536} \approx \frac{5.000.000}{65536} \approx 76\)</span>$</p>
+</div>
+<h2 id="automacao-via-makefile">Automação via Makefile</h2>
+<p>Todos os comandos devem ser executados a partir da raiz do repositório. O <code>Makefile</code> automatiza o fluxo de simulação, visualização e síntese.</p>
+<h3 id="limpeza-do-projeto">Limpeza do Projeto</h3>
+<p>Remove todos os arquivos temporários e artefatos de build gerados:
+<div class="highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>make<span class="w"> </span>clean
+</span></code></pre></div></p>
+<h3 id="simulacao-com-cocotb">Simulação com Cocotb</h3>
+<p>Rode testes automatizados informando o nome do testbench e do top-level:
+<div class="highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>make<span class="w"> </span>cocotb<span class="w"> </span><span class="nv">TEST</span><span class="o">=</span>&lt;testbench_name&gt;<span class="w"> </span><span class="nv">TOP</span><span class="o">=</span>&lt;top_level&gt;
+</span></code></pre></div></p>
+<div class="admonition example">
+<p class="admonition-title">Visualização de Ondas</p>
+<p>Para abrir a última simulação no GTKWave e analisar os sinais em detalhes, execute:
+<code>make view TEST=&lt;testbench_name&gt;</code></p>
+</div>
+<h3 id="atalhos-de-simulacao-prontos">Atalhos de Simulação Prontos</h3>
+<p>Já existem comandos configurados para simular os datasets principais do projeto:</p>
 <ul>
-<li>O valor <strong>76</strong> cabe perfeitamente em 8 bits.</li>
-<li>O valor <code>48.000</code> viraria <strong>73</strong>.</li>
-<li>A NPU agora consegue distinguir que <strong>76 &gt; 73</strong>, restaurando a acurácia.</li>
+<li><code>make sim_mnist</code>: Simula a rede de reconhecimento de dígitos.</li>
+<li><code>make sim_iris</code>: Simula a rede de classificação do dataset Iris.</li>
 </ul>
-<h2 id="4-exemplo-de-inferencia">4. Exemplo de Inferência</h2>
-<p><strong>Entrada (Amostra Real de uma Versicolor):</strong>
-* Sépala: 6.0 cm, 2.2 cm
-* Pétala: 4.0 cm, 1.0 cm</p>
-<p><strong>Processamento:</strong>
-1.  O vetor quantizado entra na NPU.
-2.  A matriz sistólica multiplica pelas colunas de pesos das 3 flores.
-3.  A PPU aplica o Bias e faz o Rescaling.</p>
-<p><strong>Saída Esperada (Scores):</strong>
-* Col 0 (Setosa): -45 (Baixa probabilidade)
-* Col 1 (Versicolor): <strong>82</strong> (Alta probabilidade) 🏆
-* Col 2 (Virginica): 30 (Média probabilidade)</p>
-<p>O testbench (driver) lê esses valores, aplica <code>argmax([ -45, 82, 30 ])</code> e retorna <strong>Classe 1 (Versicolor)</strong>.</p>
 
 
 
@@ -1644,7 +1366,7 @@ $<span class="arithmatex">\(\frac{50.000 \times 100}{65536} \approx \frac{5.000.
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="January 12, 2026 19:16:05 UTC">January 12, 2026 19:16:05</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 1, 2026 04:17:20 UTC">March 1, 2026 04:17:20</span>
   </span>
 
     
@@ -1682,7 +1404,7 @@ $<span class="arithmatex">\(\frac{50.000 \times 100}{65536} \approx \frac{5.000.
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../MNIST/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Classificação MNIST">
+          <a href="../.." class="md-footer__link md-footer__link--prev" aria-label="Previous: Visão Geral">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1692,11 +1414,27 @@ $<span class="arithmatex">\(\frac{50.000 \times 100}{65536} \approx \frac{5.000.
                 Previous
               </span>
               <div class="md-ellipsis">
-                Classificação MNIST
+                Visão Geral
               </div>
             </div>
           </a>
         
+        
+          
+          <a href="../../hardware/overview/" class="md-footer__link md-footer__link--next" aria-label="Next: Visão Geral do Top-Level">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Visão Geral do Top-Level
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
         
       </nav>
     
