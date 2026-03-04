@@ -62,6 +62,7 @@ nav:
   - Introdução:
       - Visão Geral: index.md
       - Requisitos e Setup: intro/setup.md
+      - Primeiros Passos: intro/quickstart.md
   - Arquitetura de Hardware:
       - Visão Geral do Top-Level: hardware/overview.md
       - O Array Sistólico 4x4: hardware/systolic_array.md  # Foco no mac_pe.vhd e systolic_array.vhd
@@ -77,8 +78,9 @@ nav:
       - Ambiente de Testes (Cocotb): dev/simulation.md     # Baseado nos ficheiros em sim/
       - Fluxo de Síntese (FPGA): dev/fpga_build.md         # Baseado em fpga/scripts/
   - Aplicações:
-      - Classificação MNIST: apps/MNIST.md
       - Classificação IRIS: apps/IRIS.md
+      - Classificação MNIST: apps/MNIST.md
+      - Classificação de Dados Sintéticos: apps/fc_synthetic.md
       - Inferência MLP: apps/MLP.md                        # Onde você explicará o Tiling e o Loopback
 
 extra_css:
