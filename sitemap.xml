@@ -1,43 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
-         <loc>https://Nyfeu.github.io/NPU/</loc>
+         <loc>https://RISC-V-Azedinha.github.io/NPU/</loc>
          <lastmod>2026-03-04</lastmod>
     </url>
     <url>
-         <loc>https://Nyfeu.github.io/NPU/apps/IRIS/</loc>
+         <loc>https://RISC-V-Azedinha.github.io/NPU/apps/IRIS/</loc>
          <lastmod>2026-03-04</lastmod>
     </url>
     <url>
-         <loc>https://Nyfeu.github.io/NPU/apps/MNIST/</loc>
+         <loc>https://RISC-V-Azedinha.github.io/NPU/apps/MNIST/</loc>
          <lastmod>2026-03-04</lastmod>
     </url>
     <url>
-         <loc>https://Nyfeu.github.io/NPU/apps/fc_synthetic/</loc>
+         <loc>https://RISC-V-Azedinha.github.io/NPU/apps/fc_synthetic/</loc>
          <lastmod>2026-03-04</lastmod>
     </url>
     <url>
-         <loc>https://Nyfeu.github.io/NPU/dev/fpga_build/</loc>
+         <loc>https://RISC-V-Azedinha.github.io/NPU/dev/fpga_build/</loc>
          <lastmod>2026-03-04</lastmod>
     </url>
     <url>
-         <loc>https://Nyfeu.github.io/NPU/dev/simulation/</loc>
+         <loc>https://RISC-V-Azedinha.github.io/NPU/dev/simulation/</loc>
          <lastmod>2026-03-04</lastmod>
     </url>
     <url>
-         <loc>https://Nyfeu.github.io/NPU/hardware/overview/</loc>
+         <loc>https://RISC-V-Azedinha.github.io/NPU/hardware/overview/</loc>
          <lastmod>2026-03-04</lastmod>
     </url>
     <url>
-         <loc>https://Nyfeu.github.io/NPU/intro/setup/</loc>
+         <loc>https://RISC-V-Azedinha.github.io/NPU/hardware/systolic_array/</loc>
          <lastmod>2026-03-04</lastmod>
     </url>
     <url>
-         <loc>https://Nyfeu.github.io/NPU/software/api_programming/</loc>
+         <loc>https://RISC-V-Azedinha.github.io/NPU/intro/setup/</loc>
          <lastmod>2026-03-04</lastmod>
     </url>
     <url>
-         <loc>https://Nyfeu.github.io/NPU/software/hil/</loc>
+         <loc>https://RISC-V-Azedinha.github.io/NPU/software/api_programming/</loc>
+         <lastmod>2026-03-04</lastmod>
+    </url>
+    <url>
+         <loc>https://RISC-V-Azedinha.github.io/NPU/software/hil/</loc>
          <lastmod>2026-03-04</lastmod>
     </url>
 </urlset>

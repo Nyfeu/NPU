@@ -10,11 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://RISC-V-Azedinha.github.io/NPU/apps/fc_synthetic/">
+        <link rel="canonical" href="https://RISC-V-Azedinha.github.io/NPU/hardware/systolic_array/">
       
       
-        <link rel="prev" href="../MNIST/">
+        <link rel="prev" href="../overview/">
       
+      
+        <link rel="next" href="../../software/api_programming/">
       
       
         
@@ -25,7 +27,7 @@
     
     
       
-        <title>Classificação de Dados Sintéticos - Neural Processing Unit - NPU</title>
+        <title>O Array Sistólico 4x4 - Neural Processing Unit - NPU</title>
       
     
     
@@ -77,11 +79,6 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
-        
-        <a href="#documentacao-do-dataset-sintetico" class="md-skip">
-          Skip to content
-        </a>
-      
     </div>
     <div data-md-component="announce">
       
@@ -112,7 +109,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Classificação de Dados Sintéticos
+              O Array Sistólico 4x4
             
           </span>
         </div>
@@ -229,11 +226,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../hardware/overview/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../overview/" class="md-tabs__link">
           
   
   
@@ -289,13 +288,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../IRIS/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../apps/IRIS/" class="md-tabs__link">
           
   
   
@@ -497,24 +494,29 @@
       
   
   
+    
   
   
+  
     
     
     
     
-      
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
             
   
   
@@ -532,7 +534,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -550,7 +552,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../hardware/overview/" class="md-nav__link">
+      <a href="../overview/" class="md-nav__link">
         
   
   
@@ -575,10 +577,17 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../hardware/systolic_array/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -594,6 +603,7 @@
   
 
       </a>
+      
     </li>
   
 
@@ -606,7 +616,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../hardware/ppu.md" class="md-nav__link">
+      <a href="../ppu.md" class="md-nav__link">
         
   
   
@@ -634,7 +644,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../hardware/controller.md" class="md-nav__link">
+      <a href="../controller.md" class="md-nav__link">
         
   
   
@@ -662,7 +672,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../hardware/datapath.md" class="md-nav__link">
+      <a href="../datapath.md" class="md-nav__link">
         
   
   
@@ -690,7 +700,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../hardware/registers.md" class="md-nav__link">
+      <a href="../registers.md" class="md-nav__link">
         
   
   
@@ -976,29 +986,24 @@
       
   
   
-    
   
   
-  
     
     
     
     
       
-        
-        
-      
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
             
   
   
@@ -1016,7 +1021,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1034,7 +1039,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../IRIS/" class="md-nav__link">
+      <a href="../../apps/IRIS/" class="md-nav__link">
         
   
   
@@ -1062,7 +1067,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../MNIST/" class="md-nav__link">
+      <a href="../../apps/MNIST/" class="md-nav__link">
         
   
   
@@ -1087,37 +1092,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Classificação de Dados Sintéticos
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../apps/fc_synthetic/" class="md-nav__link">
         
   
   
@@ -1133,148 +1111,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#1-visao-geral" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1. Visão Geral
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#2-estrutura-dos-dados" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. Estrutura dos Dados
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="2. Estrutura dos Dados">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#21-dimensoes-do-teste" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.1. Dimensões do Teste
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#22-geracao-aleatoria-e-densidade-sparsity" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.2. Geração Aleatória e Densidade (Sparsity)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3-metricas-avaliadas-benchmark" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. Métricas Avaliadas (Benchmark)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#4-analise-de-desempenho-e-aceleracao-speedup" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. Análise de Desempenho e Aceleração (Speedup)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="4. Análise de Desempenho e Aceleração (Speedup)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#41-o-gargalo-de-von-neumann-no-rv32i" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.1. O Gargalo de Von Neumann no RV32I
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#42-eficiencia-da-arquitetura-sistolica-npu" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.2. Eficiência da Arquitetura Sistólica (NPU)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#43-controlador-dma" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.3. Controlador DMA
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#referencias" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Referências
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1287,7 +1123,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../MLP.md" class="md-nav__link">
+      <a href="../../apps/MLP.md" class="md-nav__link">
         
   
   
@@ -1332,138 +1168,6 @@
   
   
   
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#1-visao-geral" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1. Visão Geral
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#2-estrutura-dos-dados" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. Estrutura dos Dados
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="2. Estrutura dos Dados">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#21-dimensoes-do-teste" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.1. Dimensões do Teste
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#22-geracao-aleatoria-e-densidade-sparsity" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.2. Geração Aleatória e Densidade (Sparsity)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3-metricas-avaliadas-benchmark" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. Métricas Avaliadas (Benchmark)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#4-analise-de-desempenho-e-aceleracao-speedup" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. Análise de Desempenho e Aceleração (Speedup)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="4. Análise de Desempenho e Aceleração (Speedup)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#41-o-gargalo-de-von-neumann-no-rv32i" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.1. O Gargalo de Von Neumann no RV32I
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#42-eficiencia-da-arquitetura-sistolica-npu" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.2. Eficiência da Arquitetura Sistólica (NPU)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#43-controlador-dma" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.3. Controlador DMA
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#referencias" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Referências
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
   
 </nav>
                   </div>
@@ -1483,99 +1187,9 @@
   
 
 
-<h1 id="documentacao-do-dataset-sintetico">Documentação do Dataset Sintético 🚀</h1>
-<h2 id="1-visao-geral">1. Visão Geral</h2>
-<p>O <strong>dataset sintético FC</strong> (<em>Fully Connected</em>) foi desenvolvido especificamente como uma ferramenta de benchmarking para extrair o limite de desempenho (<em>peak performance</em>) da NPU. </p>
-<p>Diferentemente de datasets do mundo real (como o <a href="../MNIST/">MNIST</a>), que frequentemente contêm alta esparsidade (muitos valores nulos), este conjunto de dados utiliza matrizes densas geradas aleatoriamente. O objetivo é eliminar o viés do <em>zero-skipping</em> das CPUs e medir a capacidade bruta de processamento paralelo dos arrays sistólicos da NPU sob carga máxima. </p>
-<h2 id="2-estrutura-dos-dados">2. Estrutura dos Dados</h2>
-<p>Os dados são gerados dinamicamente no momento do teste em formato <code>INT8</code>, simulando o comportamento de uma camada densa (<em>Fully Connected Layer</em>) de uma rede neural de grande porte. </p>
-<h3 id="21-dimensoes-do-teste">2.1. Dimensões do Teste</h3>
-<p>A topologia selecionada para a rede avaliada é:</p>
-<ul>
-<li><strong>Entradas</strong> (<span class="arithmatex">\(K_{DIM}\)</span>): 2048 <em>features</em> de entrada;</li>
-<li><strong>Saídas</strong> (<span class="arithmatex">\(N_{OUT}\)</span>): 64 neurônios na camada;</li>
-<li><strong>Total de Pesos</strong>: 2048 <span class="arithmatex">\(\times\)</span> 64 = 131.072 parâmetros (ocupando 128 KB de memória RAM).</li>
-</ul>
-<h3 id="22-geracao-aleatoria-e-densidade-sparsity">2.2. Geração Aleatória e Densidade (<em>Sparsity</em>)</h3>
-<p>As matrizes de pesos e os vetores de entrada são preenchidos utilizando uma distribuição uniforme entre <code>-128</code> e <code>126</code>. </p>
-<div class="admonition note">
-<p class="admonition-title">Por que usar dados aleatórios?</p>
-<p>Em uma distruibuição uniforme de <code>255</code>inteiros, a probabilidade de um elemento assumir o valor <code>0</code> é de aproximadamente <code>0,39%</code>. Isso garante que a matriz resultante seja <code>&gt; 99,6%</code> densa. </p>
-</div>
-<p>Como os aceleradores sistólicos calculam multiplicações de forma agnóstica ao valor do dado (inclusive <span class="arithmatex">\(0 \times X\)</span>), o uso de matrizes quase 100% densas nivela o campo de jogo contra CPUs. Isso revela o ganho real e absoluto de velocidade (<em>speedup</em>) originado exclusivamente do paralelismo massivo em hardware, sem a interferência de otimizações de software para dados esparsos.</p>
-<h2 id="3-metricas-avaliadas-benchmark">3. Métricas Avaliadas (Benchmark)</h2>
-<p>O <em>script</em> de validação não apenas confere a exatidão dos cálculos, mas também extrai métricas de performance cruciais para a avaliação da arquitetura:</p>
-<ul>
-<li>
-<p><strong>Integridade (Bit-Exactness)</strong>: a saída da NPU é comparada <em>byte</em> a <em>byte</em> com um modelo de referência em software rodando na CPU. O teste só é validado se a taxa de acerto for de 100%, garantindo que o acúmulo e o shifting não introduzam erros de precisão matemática.</p>
-</li>
-<li>
-<p><strong>Speedup</strong>: calculado pela razão direta entre os ciclos de clock consumidos pela CPU e os ciclos consumidos pela NPU para a mesma inferência.</p>
-</li>
-<li>
-<p><strong>Throughput (GOPS)</strong>: mensura a quantidade de Giga Operações por Segundo. Considerando que cada conexão exige uma operação de multiplicação e acúmulo (MAC), o throughput efetivo é calculado com base no tempo total gasto pela NPU para processar todas as amostras.</p>
-</li>
-</ul>
-<div class="arithmatex">\[
-\text{GOPS} = \cfrac{\text{Total Operações}}{\text{Tempo NPU Segundos} \times 10^9}
-\]</div>
-<h2 id="4-analise-de-desempenho-e-aceleracao-speedup">4. Análise de Desempenho e Aceleração (Speedup)</h2>
-<p>Os resultados do benchmark sintético demonstraram um speedup médio de 384.6x da NPU em relação à CPU. Embora esse valor absoluto possa parecer ordens de grandeza acima do convencional à primeira vista, ele é matematicamente coerente e esperado quando analisamos as diferenças microarquiteturais entre os dois domínios de execução.</p>
-<div class="admonition abstract">
-<p class="admonition-title">Paralelo com a Literatura (Google TPU)</p>
-<p>No artigo que introduziu a Tensor Processing Unit (TPU), Jouppi et al. (2017) reportaram ganhos de aceleração de 15x a 30x (chegando a picos de 71x) contra CPUs e GPUs da época.</p>
-</div>
-<p>É fundamental, no entanto, contextualizar o <em>baseline</em> de comparação. O Google utilizou como referência processadores de servidor robustos (Intel Haswell Xeon de 18 núcleos), dotados de execução superescalar fora de ordem (<em>out-of-order</em>) e instruções vetoriais complexas (AVX2). Quando contrastamos uma arquitetura de aplicação específica (DSA) com um processador escalar embarcado — que não possui unidades de vetorização nativas — ganhos na casa das centenas representam o comportamento padrão validado pela literatura de arquitetura de computadores.</p>
-<h3 id="41-o-gargalo-de-von-neumann-no-rv32i">4.1. O Gargalo de Von Neumann no RV32I</h3>
-<p>O modelo de referência em software foi executado em um processador RISC-V (RV32I) com microarquitetura multi-ciclo. Neste paradigma computacional clássico, o custo real de uma operação de Multiplicação e Acúmulo (MAC), essencial para redes neurais, é dominado pelo acesso à memória e pelo controle de fluxo estrutural.</p>
-<p>Considere a instrução interna do laço de processamento de uma camada densa:</p>
-<div class="arithmatex">\[
-acc \leftarrow acc + (\text{peso} \times \text{entrada})
-\]</div>
-<p>Para computar apenas esta etapa de uma única conexão, o RV32I multi-ciclo exige:</p>
-<ol>
-<li>
-<p>Busca de Instruções (Instruction Fetch): Múltiplos ciclos consumidos apenas para ler as instruções de Load, Multiply, Add, Store e de desvio condicional (Branch).</p>
-</li>
-<li>
-<p>Latência de Memória (Data Hazard): A arquitetura consome 12 ciclos apenas para movimentação de dados, sendo 7 ciclos dedicados a cada instrução de LOAD (para buscar o peso e a entrada na memória RAM) e 5 ciclos para eventuais STORE de resultados intermediários.</p>
-</li>
-<li>
-<p>Overhead de Controle: O incremento de ponteiros dos arrays e a verificação de condições do laço for inserem dezenas de ciclos adicionais de controle (overhead) para cada cálculo útil realizado.</p>
-</li>
-</ol>
-<p>Isso explica por que a CPU consome mais de 330 milhões de ciclos para processar as 131.072 conexões da camada, resultando em uma média de milhares de ciclos de clock para completar uma única operação MAC.</p>
-<h3 id="42-eficiencia-da-arquitetura-sistolica-npu">4.2. Eficiência da Arquitetura Sistólica (NPU)</h3>
-<p>Em contraste drástico, a NPU resolve o gargalo de acesso à memória através do paralelismo espacial e da localidade de dados.</p>
-<ul>
-<li>
-<p><strong>Execução Livre de Instruções</strong>: Os Arrays Sistólicos não buscam instruções em tempo de execução. A Máquina de Estados Finita (FSM) de controle despacha os dados geometricamente pela malha de Processamento (PEs).</p>
-</li>
-<li>
-<p><strong>Localidade de Operandos</strong>: Os 128 KB de pesos pré-carregados nas BRAMs internas eliminam completamente a latência dos 7 ciclos de LOAD do barramento principal.</p>
-</li>
-<li>
-<p><strong>Throughput Constante</strong>: A NPU executa multiplicações e acúmulos a cada batida de clock de forma pipelined, sem penalidades de saltos (branches) ou gerenciamento de ponteiros.</p>
-</li>
-</ul>
-<p>Dessa forma, a métrica de 384.6x ilustra de forma clara e rigorosa o isolamento da carga computacional útil, comprovando o impacto massivo de se transferir algoritmos de alta densidade aritmética de processadores de propósito geral para arquiteturas baseadas em fluxo de dados (dataflow).</p>
-<h3 id="43-controlador-dma">4.3. Controlador DMA</h3>
-<p>Um dos fatores mais determinantes para alcançar o speedup relatado em nível de sistema (SoC) é a estratégia de movimentação de dados implementada. O desempenho de um acelerador de hardware não é ditado apenas pela sua capacidade de computação interna, mas diretamente pela forma como ele é alimentado (data feeding).</p>
-<ul>
-<li>
-<p>O Gargalo do <strong>Programmed I/O (PIO)</strong>: Se o processador RV32I fosse responsável por orquestrar a transferência manual dos dados, ele precisaria ler cada operando da memória principal e escrever nos registradores mapeados em memória do acelerador. Considerando os 12 ciclos de latência de memória do RV32I, o barramento ficaria saturado e a vantagem temporal dos arrays sistólicos seria anulada pelo tempo de transferência.</p>
-</li>
-<li>
-<p><strong>Transferência Autônoma (DMA)</strong>: A arquitetura resolve esse problema de largura de banda delegando a movimentação ao controlador de DMA (Direct Memory Access). A CPU atua apenas em nível de supervisão: ela configura os endereços de origem, destino e o tamanho do bloco. O DMA assume o controle do barramento e realiza transferências diretamente da RAM para as BRAMs locais da NPU, maximizando a largura de banda da interconexão.</p>
-</li>
-<li>
-<p><strong>Sobreposição e Paralelismo Real (Overlap)</strong>: Com a transferência descarregada (offloaded) para o DMA, o custo de latência de I/O é efetivamente mascarado. O RV32I fica com seus ciclos completamente livres para realizar o escalonamento de tarefas do sistema operacional em background (como o gerenciamento de threads no RTOS AXON) ou pré-processar as próximas amostras, enquanto a NPU processa a carga atual de forma totalmente autônoma.</p>
-</li>
-</ul>
-<h2 id="referencias">Referências</h2>
-<ul>
-<li>JOUPPI, Norman P. et al. In-datacenter performance analysis of a tensor processing unit. In: Proceedings of the 44th annual international symposium on computer architecture. 2017. p. 1-12.</li>
-</ul>
+  <h1>O Array Sistólico 4x4</h1>
+
+
 
 
 
@@ -1596,7 +1210,7 @@ acc \leftarrow acc + (\text{peso} \times \text{entrada})
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 4, 2026 19:35:05 UTC">March 4, 2026 19:35:05</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 4, 2026 20:57:10 UTC">March 4, 2026 20:57:10</span>
   </span>
 
     
@@ -1634,7 +1248,7 @@ acc \leftarrow acc + (\text{peso} \times \text{entrada})
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../MNIST/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Classificação MNIST">
+          <a href="../overview/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Visão Geral do Top-Level">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1644,11 +1258,27 @@ acc \leftarrow acc + (\text{peso} \times \text{entrada})
                 Previous
               </span>
               <div class="md-ellipsis">
-                Classificação MNIST
+                Visão Geral do Top-Level
               </div>
             </div>
           </a>
         
+        
+          
+          <a href="../../software/api_programming/" class="md-footer__link md-footer__link--next" aria-label="Next: API de Programação">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                API de Programação
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
         
       </nav>
     
